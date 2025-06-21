@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Add your custom CSS variables here */
+:root {
+  --dark-bg: #0f0f23; /* Deeper main background */
+  --dark-secondary: #1e1e3a; /* Sidebar/panel background */
+  --dark-tertiary: #2a2a4a; /* Borders and dividers */
+  --accent-purple: #6366f1; /* Primary accent (indigo) */
+  --text-primary: #f8fafc; /* High contrast white text */
+  --text-secondary: #cbd5e1; /* Muted text */
+  --text-muted: #64748b; /* Very muted text */
+}
+
+/* Disable sidebar animations */
+.sidebar,
+aside {
+  transition: none !important;
+}
