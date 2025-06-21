@@ -1,5 +1,5 @@
 // src/api/chatApi.ts
-const base = 'http://127.0.0.1:8000/api/v1/chat';
+const base = import.meta.env.VITE_API_BASE_URL + '/api/v1/chat';
 
 export function listConversations(user: string) {
   return fetch(`${base}/conversations?user_id=${user}`).then(r => r.json());
