@@ -1,7 +1,7 @@
 import os
 
 output_file = "backend_flattened.txt"
-ignore_dirs = {'.git', '__pycache__', '.venv', '.pytest_cache', 'test_files', 'storage'}
+ignore_dirs = {".git", "__pycache__", ".venv", ".pytest_cache", "test_files", "storage"}
 ignore_files = {output_file}
 
 with open(output_file, "w", encoding="utf-8") as outfile:
@@ -23,7 +23,7 @@ with open(output_file, "w", encoding="utf-8") as outfile:
                 # Add file marker and content
                 outfile.write(f"\n# path: {relpath.replace(os.sep, '/')}\n")
                 outfile.write(content)
-                outfile.write("\n" + "="*80 + "\n")  # separator between files
+                outfile.write("\n" + "=" * 80 + "\n")  # separator between files
 
 #
 # import os
@@ -75,5 +75,3 @@ with open(output_file, "w", encoding="utf-8") as outfile:
 #
 # if __name__ == "__main__":
 #     main()
-
-

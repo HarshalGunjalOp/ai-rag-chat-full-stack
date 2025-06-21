@@ -1,18 +1,16 @@
-
-
 import { PlusIcon, ChevronLeftIcon } from '@heroicons/react/24/solid';
 import { useChat } from '../context/ChatContext.tsx';
 import ConversationItem from './ConversationItem';
 
 export default function Sidebar() {
-  const { 
-    conversations, 
-    currentConv, 
-    setCurrentConv, 
-    clearChat, 
-    docStatus, 
+  const {
+    conversations,
+    currentConv,
+    setCurrentConv,
+    clearChat,
+    docStatus,
     loadConversationMessages,
-    toggleSidebar 
+    toggleSidebar,
   } = useChat();
 
   const handleConversationClick = async (conv: any) => {
@@ -34,7 +32,6 @@ export default function Sidebar() {
             New Chat
           </button>
         </div>
-        
       </header>
 
       {/* Conversations List */}
@@ -62,4 +59,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-

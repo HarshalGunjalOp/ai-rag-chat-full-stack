@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
@@ -15,5 +16,5 @@ class Settings(BaseSettings):
     # Tell pydantic where to find the .env file
     model_config = SettingsConfigDict(env_file=".env")
 
-settings = Settings()
 
+settings = Settings()

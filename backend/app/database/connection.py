@@ -1,11 +1,13 @@
+import logging
+from typing import Optional
 
 import asyncpg
 from asyncpg import Pool
-from typing import Optional
+
 from app.config import settings
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
     def __init__(self):
@@ -20,17 +22,17 @@ class DatabaseManager:
                 max_size=settings.DB_POOL_SIZE,
                 command_timeout=60,
                 server_settings={
-                    'jit': 'off'  # Disable JIT for better connection stability
-                }
+                    "jit": "off"  # Disable JIT for better connection stability
+                },
             )
-            
+
             # Test connection
             async with self.pool.acquire() as conn:
                 await conn.execute("SELECT 1")
-            
+
             await self.create_tables()
             logger.info("âœ… Database connected successfully")
-            
+
         except Exception as e:
             logger.error(f"âŒ Database connection failed: {e}")
             raise
@@ -39,10 +41,11 @@ class DatabaseManager:
         """Create tables with proper error handling"""
         if not self.pool:
             raise RuntimeError("Database pool not initialized")
-        
+
         async with self.pool.acquire() as conn:
             # Create tables with proper constraints
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS conversations (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(100) NOT NULL,
@@ -79,7 +82,8 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_messages_content_gin ON messages USING GIN(content);
                 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
                 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
-            """)
+            """
+            )
 
     async def get_connection(self):
         """Safe connection acquisition"""
@@ -91,10 +95,9 @@ class DatabaseManager:
         """Execute query with proper error handling"""
         if not self.pool:
             raise RuntimeError("Database pool not initialized")
-        
+
         async with self.pool.acquire() as conn:
             return await conn.fetch(query, *args)
 
+
 db_manager = DatabaseManager()
-
-

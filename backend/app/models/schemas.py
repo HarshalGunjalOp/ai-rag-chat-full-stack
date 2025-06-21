@@ -1,17 +1,21 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
 
 class MessageType(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
+
 class MessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=10000)
     conversation_id: Optional[int] = None
     user_id: str = Field(..., min_length=1, max_length=100)
+
 
 class MessageResponse(BaseModel):
     id: int
@@ -21,9 +25,11 @@ class MessageResponse(BaseModel):
     message_type: MessageType
     created_at: datetime
 
+
 class ConversationCreate(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=100)
     title: Optional[str] = Field(None, max_length=255)
+
 
 class ConversationResponse(BaseModel):
     id: int
@@ -32,10 +38,12 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     message_count: Optional[int] = 0
 
+
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     conversation_id: Optional[int] = None
     user_id: str = Field(..., min_length=1, max_length=100)
+
 
 class RAGResponse(BaseModel):
     answer: str
@@ -43,13 +51,14 @@ class RAGResponse(BaseModel):
     cached: bool = False
     response_time_ms: int
 
+
 class ChatResponse(BaseModel):
     message: MessageResponse
     rag_response: Optional[RAGResponse] = None
+
 
 class FileUploadResponse(BaseModel):
     filename: str
     status: str
     chunks_processed: int
     message: str
-

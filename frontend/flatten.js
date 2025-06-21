@@ -1,13 +1,20 @@
-import fs from "fs"
-import path from "path";
+import fs from 'fs';
+import path from 'path';
 
 const ROOT_DIR = '.';
 const OUTPUT_FILE = 'frontend_flattened.txt';
 
 // Extensions to include
 const INCLUDE_EXTENSIONS = new Set([
-  '.ts', '.tsx', '.js', '.jsx', '.json',
-  '.html', '.css', '.md', '.txt'
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.json',
+  '.html',
+  '.css',
+  '.md',
+  '.txt',
 ]);
 
 // Recursively collect and flatten files

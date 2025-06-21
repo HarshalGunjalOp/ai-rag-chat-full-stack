@@ -1,15 +1,28 @@
 // src/components/InputArea/InputBar.tsx
-import {PaperAirplaneIcon, PaperClipIcon, TrashIcon, DocumentPlusIcon} from '@heroicons/react/24/solid';
-import {useState, useRef, useEffect} from 'react';
-import {useChat} from '../../context/ChatContext.tsx';
-import {useEventSource} from '../../hooks/useEventSource';
+import {
+  PaperAirplaneIcon,
+  PaperClipIcon,
+  TrashIcon,
+  DocumentPlusIcon,
+} from '@heroicons/react/24/solid';
+import { useState, useRef, useEffect } from 'react';
+import { useChat } from '../../context/ChatContext.tsx';
+import { useEventSource } from '../../hooks/useEventSource';
 import UploadModal from './UploadModal';
-import {clearDocuments} from '../../api/chatApi.ts'
+import { clearDocuments } from '../../api/chatApi.ts';
 import * as api from '../../api/chatApi.ts';
 
-
 export default function InputBar() {
-  const {userId, addUserMessage, pushAssistantPlaceholder, appendStreamChunk, finaliseAssistant, currentConv, setLoading, isLoading, setCurrentConv,
+  const {
+    userId,
+    addUserMessage,
+    pushAssistantPlaceholder,
+    appendStreamChunk,
+    finaliseAssistant,
+    currentConv,
+    setLoading,
+    isLoading,
+    setCurrentConv,
   } = useChat();
 
   const [text, setText] = useState('');
@@ -17,8 +30,11 @@ export default function InputBar() {
   const [showUpload, setShowUpload] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const {consume, controllerRef, abort} = useEventSource();
-  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const { consume, controllerRef, abort } = useEventSource();
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -45,7 +61,7 @@ export default function InputBar() {
         userId,
         text.trim(),
         currentConv?.id,
-        controllerRef.current.signal,
+        controllerRef.current.signal
       );
       await consume(
         resp,
@@ -53,9 +69,13 @@ export default function InputBar() {
         meta => {
           finaliseAssistant(undefined, meta.sources);
           if (!currentConv) {
-            setCurrentConv({id: meta.conversationId, title: meta.fullText.slice(0, 30), timestamp: new Date().toISOString()});
+            setCurrentConv({
+              id: meta.conversationId,
+              title: meta.fullText.slice(0, 30),
+              timestamp: new Date().toISOString(),
+            });
           }
-        },
+        }
       );
     } catch (err) {
       appendStreamChunk('❌ Error');
@@ -69,29 +89,29 @@ export default function InputBar() {
     fileInput.current?.click();
   };
 
-  
-const handleClearDocuments = async () => {
-  setShowDropdown(false);
-  try {
-    setNotification({type: 'success', message: 'Clearing documents...'});
-    
-    const response = await api.clearDocuments(userId);
-    
-    // The response should be a JSON object with a message property
-    setNotification({type: 'success', message: response.message || 'Documents cleared successfully!'});
-    
-    // Refresh document status if you have this function
-    // refreshDocStatus();
-    
-  } catch (error) {
-    console.error('Error clearing documents:', error);
-    setNotification({type: 'error', message: `Failed to clear documents: ${error.message}`});
-  }
-  
-  // Clear notification after 3 seconds
-  setTimeout(() => setNotification(null), 3000);
-};
+  const handleClearDocuments = async () => {
+    setShowDropdown(false);
+    try {
+      setNotification({ type: 'success', message: 'Clearing documents...' });
 
+      const response = await api.clearDocuments(userId);
+
+      // The response should be a JSON object with a message property
+      setNotification({
+        type: 'success',
+        message: response.message || 'Documents cleared successfully!',
+      });
+
+      // Refresh document status if you have this function
+      // refreshDocStatus();
+    } catch (error) {
+      console.error('Error clearing documents:', error);
+      setNotification({ type: 'error', message: `Failed to clear documents: ${error.message}` });
+    }
+
+    // Clear notification after 3 seconds
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   return (
     <div className="bg-dark-secondary border-t border-dark-tertiary p-4">
@@ -100,7 +120,8 @@ const handleClearDocuments = async () => {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowDropdown(!showDropdown)}
-            className="p-3 text-gray-400 hover:text-white hover:bg-dark-tertiary rounded-lg transition-colors">
+            className="p-3 text-gray-400 hover:text-white hover:bg-dark-tertiary rounded-lg transition-colors"
+          >
             <PaperClipIcon className="w-5 h-5" />
           </button>
 
@@ -109,13 +130,15 @@ const handleClearDocuments = async () => {
             <div className="absolute bottom-full left-0 mb-4 bg-slate-800 border border-dark-tertiary rounded-lg shadow-lg py-2 min-w-[180px] z-10">
               <button
                 onClick={handleUploadDocuments}
-                className="w-full px-4 py-2 text-left text-white hover:bg-dark-tertiary flex items-center gap-3 transition-colors">
+                className="w-full px-4 py-2 text-left text-white hover:bg-dark-tertiary flex items-center gap-3 transition-colors"
+              >
                 <DocumentPlusIcon className="w-4 h-4 text-green-400" />
                 Upload Documents
               </button>
               <button
                 onClick={handleClearDocuments}
-                className="w-full px-4 py-2 text-left text-white hover:bg-dark-tertiary flex items-center gap-3 transition-colors">
+                className="w-full px-4 py-2 text-left text-white hover:bg-dark-tertiary flex items-center gap-3 transition-colors"
+              >
                 <TrashIcon className="w-4 h-4 text-red-400" />
                 Clear All Documents
               </button>
@@ -146,13 +169,14 @@ const handleClearDocuments = async () => {
           }}
           placeholder="Type your message..."
           className="flex-1 bg-dark-bg border border-dark-tertiary rounded-lg px-4 py-3 text-white placeholder-gray-400 resize-none focus:ring-2 focus:ring-accent-purple focus:border-transparent"
-          style={{maxHeight: 120}}
+          style={{ maxHeight: 120 }}
         />
 
         <button
           disabled={!text.trim() || isLoading}
           onClick={send}
-          className="bg-purple-800 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex gap-2">
+          className="bg-purple-800 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex gap-2"
+        >
           <PaperAirplaneIcon className="w-4 h-4 my-1" />
           Send
         </button>
@@ -163,4 +187,3 @@ const handleClearDocuments = async () => {
     </div>
   );
 }
-
