@@ -1,5 +1,4 @@
 import { useChat } from '../context/ChatContext';
-import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 export default function ChatHeader() {
   const { currentConv, connectionOk } = useChat();

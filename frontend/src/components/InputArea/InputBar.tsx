@@ -9,7 +9,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useChat } from '../../context/ChatContext.tsx';
 import { useEventSource } from '../../hooks/useEventSource';
 import UploadModal from './UploadModal';
-import { clearDocuments } from '../../api/chatApi.ts';
 import * as api from '../../api/chatApi.ts';
 
 export default function InputBar() {
@@ -99,14 +98,14 @@ export default function InputBar() {
       // The response should be a JSON object with a message property
       setNotification({
         type: 'success',
-        message: response.message || 'Documents cleared successfully!',
+        message: response.ok ? 'Documents cleared successfully!' : 'Failed to clear documents',
       });
 
       // Refresh document status if you have this function
       // refreshDocStatus();
     } catch (error) {
       console.error('Error clearing documents:', error);
-      setNotification({ type: 'error', message: `Failed to clear documents: ${error.message}` });
+      setNotification({ type: 'error', message: `Failed to clear documents: ${error instanceof Error ? error.message : String(error)}`});
     }
 
     // Clear notification after 3 seconds

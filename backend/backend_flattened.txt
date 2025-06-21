@@ -5,14 +5,13 @@ import uvicorn
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
 
-
 ================================================================================
 
 # path: misc.py
 import os
 
 output_file = "backend_flattened.txt"
-ignore_dirs = {'.git', '__pycache__', '.venv', '.pytest_cache', 'test_files', 'storage'}
+ignore_dirs = {".git", "__pycache__", ".venv", ".pytest_cache", "test_files", "storage"}
 ignore_files = {output_file}
 
 with open(output_file, "w", encoding="utf-8") as outfile:
@@ -34,7 +33,7 @@ with open(output_file, "w", encoding="utf-8") as outfile:
                 # Add file marker and content
                 outfile.write(f"\n# path: {relpath.replace(os.sep, '/')}\n")
                 outfile.write(content)
-                outfile.write("\n" + "="*80 + "\n")  # separator between files
+                outfile.write("\n" + "=" * 80 + "\n")  # separator between files
 
 #
 # import os
@@ -87,8 +86,6 @@ with open(output_file, "w", encoding="utf-8") as outfile:
 # if __name__ == "__main__":
 #     main()
 
-
-
 ================================================================================
 
 # path: app/__init__.py
@@ -96,22 +93,47 @@ with open(output_file, "w", encoding="utf-8") as outfile:
 
 ================================================================================
 
-# path: app/main.py
+# path: app/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from fastapi import FastAPI, HTTPException, Depends
+
+class Settings(BaseSettings):
+    # Database
+    DATABASE_URL: str
+    DB_POOL_SIZE: int = 20
+    CACHE_TTL: int = 3600  # 1hr
+
+    # Redis
+    REDIS_URL: str
+
+    # OpenAI
+    OPENAI_API_KEY: str
+
+    # Tell pydantic where to find the .env file
+    model_config = SettingsConfigDict(env_file=".env")
+
+
+settings = Settings()
+
+================================================================================
+
+# path: app/main.py
+import os
+import sys
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from contextlib import asynccontextmanager
-import uvicorn
-import sys
-import os
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database.connection import db_manager
-from app.services.cache_service import cache_service
 from app.routes.chat import router as chat_router
+from app.services.cache_service import cache_service
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -129,20 +151,22 @@ async def lifespan(app: FastAPI):
         if db_manager.pool:
             await db_manager.pool.close()
 
-app = FastAPI(
-    title="RAG Chat API",
-    version="1.0.0",
-    lifespan=lifespan
-)
+
+app = FastAPI(title="RAG Chat API", version="1.0.0", lifespan=lifespan)
 
 # Fixed CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:8000", "http://localhost:5173", "*"],  # Add your frontend URLs
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5173",
+        "*",
+    ],  # Add your frontend URLs
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["*"],
 )
 
 # Include routers
@@ -150,31 +174,6 @@ app.include_router(chat_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-
-
-
-================================================================================
-
-# path: app/config.py
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-class Settings(BaseSettings):
-    # Database
-    DATABASE_URL: str
-    DB_POOL_SIZE: int = 20
-    CACHE_TTL: int = 3600  # 1hr
-
-    # Redis
-    REDIS_URL: str
-
-    # OpenAI
-    OPENAI_API_KEY: str
-
-    # Tell pydantic where to find the .env file
-    model_config = SettingsConfigDict(env_file=".env")
-
-settings = Settings()
-
 
 ================================================================================
 
@@ -184,14 +183,16 @@ settings = Settings()
 ================================================================================
 
 # path: app/database/connection.py
+import logging
+from typing import Optional
 
 import asyncpg
 from asyncpg import Pool
-from typing import Optional
+
 from app.config import settings
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
     def __init__(self):
@@ -206,17 +207,17 @@ class DatabaseManager:
                 max_size=settings.DB_POOL_SIZE,
                 command_timeout=60,
                 server_settings={
-                    'jit': 'off'  # Disable JIT for better connection stability
-                }
+                    "jit": "off"  # Disable JIT for better connection stability
+                },
             )
-            
+
             # Test connection
             async with self.pool.acquire() as conn:
                 await conn.execute("SELECT 1")
-            
+
             await self.create_tables()
             logger.info("âœ… Database connected successfully")
-            
+
         except Exception as e:
             logger.error(f"âŒ Database connection failed: {e}")
             raise
@@ -225,10 +226,11 @@ class DatabaseManager:
         """Create tables with proper error handling"""
         if not self.pool:
             raise RuntimeError("Database pool not initialized")
-        
+
         async with self.pool.acquire() as conn:
             # Create tables with proper constraints
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS conversations (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(100) NOT NULL,
@@ -265,7 +267,8 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_messages_content_gin ON messages USING GIN(content);
                 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
                 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
-            """)
+            """
+            )
 
     async def get_connection(self):
         """Safe connection acquisition"""
@@ -277,13 +280,12 @@ class DatabaseManager:
         """Execute query with proper error handling"""
         if not self.pool:
             raise RuntimeError("Database pool not initialized")
-        
+
         async with self.pool.acquire() as conn:
             return await conn.fetch(query, *args)
 
+
 db_manager = DatabaseManager()
-
-
 
 ================================================================================
 
@@ -293,20 +295,24 @@ db_manager = DatabaseManager()
 ================================================================================
 
 # path: app/models/schemas.py
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
 
 class MessageType(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
+
 class MessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=10000)
     conversation_id: Optional[int] = None
     user_id: str = Field(..., min_length=1, max_length=100)
+
 
 class MessageResponse(BaseModel):
     id: int
@@ -316,9 +322,11 @@ class MessageResponse(BaseModel):
     message_type: MessageType
     created_at: datetime
 
+
 class ConversationCreate(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=100)
     title: Optional[str] = Field(None, max_length=255)
+
 
 class ConversationResponse(BaseModel):
     id: int
@@ -327,10 +335,12 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     message_count: Optional[int] = 0
 
+
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     conversation_id: Optional[int] = None
     user_id: str = Field(..., min_length=1, max_length=100)
+
 
 class RAGResponse(BaseModel):
     answer: str
@@ -338,16 +348,17 @@ class RAGResponse(BaseModel):
     cached: bool = False
     response_time_ms: int
 
+
 class ChatResponse(BaseModel):
     message: MessageResponse
     rag_response: Optional[RAGResponse] = None
+
 
 class FileUploadResponse(BaseModel):
     filename: str
     status: str
     chunks_processed: int
     message: str
-
 
 ================================================================================
 
@@ -357,81 +368,89 @@ class FileUploadResponse(BaseModel):
 ================================================================================
 
 # path: app/services/cache_service.py
-import redis.asyncio as redis
 import json
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
+import redis.asyncio as redis
+
 from app.config import settings
+
 
 class CacheService:
     def __init__(self):
         self.redis_client = None
-    
+
     async def connect(self):
         self.redis_client = redis.from_url(settings.REDIS_URL)
-    
-    async def get_recent_messages(self, conversation_id: str, limit: int = 50) -> Optional[List[Dict]]:
+
+    async def get_recent_messages(
+        self, conversation_id: str, limit: int = 50
+    ) -> Optional[List[Dict]]:
         """Get recent 50 messages per conversation as per plan"""
         key = f"messages:{conversation_id}"
         messages = await self.redis_client.lrange(key, -limit, -1)
         return [json.loads(msg) for msg in messages] if messages else None
-    
+
     async def cache_message(self, conversation_id: str, message: Dict[str, Any]):
         """Cache message with Redis list"""
         key = f"messages:{conversation_id}"
         await self.redis_client.lpush(key, json.dumps(message))
         await self.redis_client.expire(key, settings.CACHE_TTL)
-    
+
     async def get_rag_response(self, query_hash: str) -> Optional[str]:
         """Get cached RAG response (1 hour TTL as per plan)"""
         key = f"rag:{query_hash}"
         return await self.redis_client.get(key)
-    
+
     async def cache_rag_response(self, query_hash: str, response: str):
         """Cache RAG response for 1 hour"""
         key = f"rag:{query_hash}"
         await self.redis_client.setex(key, settings.CACHE_TTL, response)
 
-cache_service = CacheService()
 
+cache_service = CacheService()
 
 ================================================================================
 
 # path: app/services/rag_service.py
-
 # File: app/services/rag_service.py
-import faiss
-import numpy as np
-from typing import Dict, Any, List, Optional, AsyncGenerator
-from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.documents import Document
-from langchain_core.messages import HumanMessage, SystemMessage
-from openai import AsyncOpenAI
-import PyPDF2
-import io
+import asyncio
 import base64
 import hashlib
-from pathlib import Path
-from rank_bm25 import BM25Okapi
+import io
 import json
-import asyncio
 from datetime import datetime
+from pathlib import Path
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
+import faiss
+import numpy as np
+import PyPDF2
+from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_text_splitters import (MarkdownHeaderTextSplitter,
+                                      RecursiveCharacterTextSplitter)
+from openai import AsyncOpenAI
+from rank_bm25 import BM25Okapi
+
 from app.config import settings
 from app.services.cache_service import cache_service
+
 
 class RAGService:
     def __init__(self):
         self.embeddings = None
         self.text_llm = None
         self.vision_llm = None
-        
+
         # User-specific data structures
         self.user_faiss_indexes = {}  # user_id -> faiss_index
-        self.user_bm25_indexes = {}   # user_id -> bm25_index
-        self.user_documents = {}      # user_id -> List[Document]
-        self.user_metadata = {}       # user_id -> metadata
-        self.user_image_cache = {}    # user_id -> {filename: base64_image}
-        
+        self.user_bm25_indexes = {}  # user_id -> bm25_index
+        self.user_documents = {}  # user_id -> List[Document]
+        self.user_metadata = {}  # user_id -> metadata
+        self.user_image_cache = {}  # user_id -> {filename: base64_image}
+
         # Configuration for hybrid behavior
         self.hybrid_config = {
             "semantic_weight": 0.7,
@@ -440,47 +459,47 @@ class RAGService:
             "max_context_length": 4000,
             "default_topk": 5,
             "enable_query_expansion": True,
-            "cache_responses": True
+            "cache_responses": True,
         }
-        
+
         # Text splitters for different document types
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500, 
+            chunk_size=500,
             chunk_overlap=50,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
+            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
         )
-        
+
         self.md_splitter = MarkdownHeaderTextSplitter(
             headers_to_split_on=[
                 ("#", "Header 1"),
-                ("##", "Header 2"), 
+                ("##", "Header 2"),
                 ("###", "Header 3"),
             ]
         )
-        
+
         self.initialize()
 
     def initialize(self):
         """Initialize OpenAI components"""
         self.embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        
+
         # Text processing LLM
         self.text_llm = ChatOpenAI(
             openai_api_key=settings.OPENAI_API_KEY,
             model="o3-mini",
             max_completion_tokens=2000,
             timeout=30,
-            max_retries=2
+            max_retries=2,
         )
-        
+
         # Vision LLM for image processing
         self.vision_llm = ChatOpenAI(
             openai_api_key=settings.OPENAI_API_KEY,
             model="gpt-4o",
             max_completion_tokens=1000,
             timeout=30,
-            max_retries=2
+            max_retries=2,
         )
 
     def _ensure_user_data(self, user_id: str):
@@ -496,7 +515,9 @@ class RAGService:
         """Check if user has any documents loaded"""
         return user_id in self.user_documents and len(self.user_documents[user_id]) > 0
 
-    async def query(self, query: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def query(
+        self, query: str, user_id: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream the RAG response with user-specific context"""
         try:
             # Validate user_id
@@ -509,7 +530,7 @@ class RAGService:
             # Check user-specific cache first
             cache_key = f"rag:{user_id}:{hash(query)}"
             cached_response = await cache_service.get_rag_response(cache_key)
-            
+
             if cached_response:
                 response_data = json.loads(cached_response)
                 for chunk in response_data.get("content", "").split():
@@ -523,19 +544,31 @@ class RAGService:
             # Check if user has documents
             if await self.has_documents(user_id):
                 # Search user-specific documents
-                relevant_docs = await self.hybrid_search(query, user_id, self.hybrid_config["default_topk"])
-                
-                if relevant_docs and self.get_max_relevance_score(relevant_docs) > self.hybrid_config["min_relevance_threshold"]:
-                    async for chunk in self.generate_context_answer_stream(query, relevant_docs, user_id):
+                relevant_docs = await self.hybrid_search(
+                    query, user_id, self.hybrid_config["default_topk"]
+                )
+
+                if (
+                    relevant_docs
+                    and self.get_max_relevance_score(relevant_docs)
+                    > self.hybrid_config["min_relevance_threshold"]
+                ):
+                    async for chunk in self.generate_context_answer_stream(
+                        query, relevant_docs, user_id
+                    ):
                         if chunk["type"] == "complete":
                             # Cache the response
-                            full_response = ""  # You'd need to collect this during streaming
+                            full_response = (
+                                ""  # You'd need to collect this during streaming
+                            )
                             cache_data = {
                                 "content": full_response,
                                 "sources": chunk.get("sources", []),
-                                "cached": True
+                                "cached": True,
                             }
-                            await cache_service.cache_rag_response(cache_key, json.dumps(cache_data))
+                            await cache_service.cache_rag_response(
+                                cache_key, json.dumps(cache_data)
+                            )
                         yield chunk
                     return
 
@@ -551,89 +584,96 @@ class RAGService:
         """Generate streaming answer using general knowledge"""
         try:
             yield {"type": "thinking", "message": "Generating response..."}
-            
+
             messages = [
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context if available, otherwise provide general knowledge responses."},
-                {"role": "user", "content": f"Question: {query}"}
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that answers questions based on provided context if available, otherwise provide general knowledge responses.",
+                },
+                {"role": "user", "content": f"Question: {query}"},
             ]
-            
+
             stream = await self.client.chat.completions.create(
                 model="o3-mini",
                 messages=messages,
                 stream=True,
-                max_completion_tokens=2000
+                max_completion_tokens=2000,
             )
-            
+
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    yield {
-                        "type": "chunk", 
-                        "content": chunk.choices[0].delta.content
-                    }
-            
+                    yield {"type": "chunk", "content": chunk.choices[0].delta.content}
+
             yield {
                 "type": "complete",
                 "sources": [],
-                "search_method": "general_knowledge"
+                "search_method": "general_knowledge",
             }
-                    
+
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
-    async def generate_context_answer_stream(self, query: str, relevant_docs: List[Document], user_id: str):
+    async def generate_context_answer_stream(
+        self, query: str, relevant_docs: List[Document], user_id: str
+    ):
         """Generate streaming answer using user's document context"""
         try:
             yield {"type": "thinking", "message": "Processing your documents..."}
-            
+
             context_parts = []
             sources = []
-            
+
             for doc in relevant_docs:
-                doc_type = doc.metadata.get('type', 'text')
-                source = doc.metadata.get('source', 'unknown')
-                
-                if doc_type == 'image':
+                doc_type = doc.metadata.get("type", "text")
+                source = doc.metadata.get("source", "unknown")
+
+                if doc_type == "image":
                     context_parts.append(f"[Image from {source}]: {doc.page_content}")
                 else:
                     context_parts.append(f"[From {source}]: {doc.page_content}")
-                
+
                 if source not in sources:
                     sources.append(source)
-            
+
             context = "\n\n".join(context_parts)
-            
+
             if len(context) > self.hybrid_config["max_context_length"]:
-                context = context[:self.hybrid_config["max_context_length"]] + "..."
-            
+                context = context[: self.hybrid_config["max_context_length"]] + "..."
+
             messages = [
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on the user's uploaded documents. Be precise and cite information appropriately."},
-                {"role": "user", "content": f"Context from user's documents:\n{context}\n\nQuestion: {query}\n\nAnswer based on the context above."}
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that answers questions based on the user's uploaded documents. Be precise and cite information appropriately.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Context from user's documents:\n{context}\n\nQuestion: {query}\n\nAnswer based on the context above.",
+                },
             ]
-            
+
             stream = await self.client.chat.completions.create(
                 model="o3-mini",
                 messages=messages,
                 stream=True,
-                max_completion_tokens=2000
+                max_completion_tokens=2000,
             )
-            
+
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    yield {
-                        "type": "chunk", 
-                        "content": chunk.choices[0].delta.content
-                    }
-            
+                    yield {"type": "chunk", "content": chunk.choices[0].delta.content}
+
             yield {
                 "type": "complete",
                 "sources": sources[:3],
-                "search_method": "user_documents"
+                "search_method": "user_documents",
             }
-                    
+
         except Exception as e:
             yield {"type": "error", "message": str(e)}
 
-    async def hybrid_search(self, query: str, user_id: str, topk: int) -> List[Document]:
+    async def hybrid_search(
+        self, query: str, user_id: str, topk: int
+    ) -> List[Document]:
         """User-specific hybrid search combining semantic + keyword"""
         if user_id not in self.user_documents or not self.user_documents[user_id]:
             return []
@@ -644,87 +684,101 @@ class RAGService:
             queries = [query, expanded_query] if expanded_query != query else [query]
         else:
             queries = [query]
-        
+
         all_results = []
         for q in queries:
             semantic_results = await self.semantic_search(q, user_id, topk)
             keyword_results = await self.keyword_search(q, user_id, topk)
             combined = self.combine_results(semantic_results, keyword_results)
             all_results.extend(combined)
-        
+
         unique_results = self.deduplicate_results(all_results)
         return unique_results[:topk]
 
-    async def semantic_search(self, query: str, user_id: str, topk: int) -> List[Document]:
+    async def semantic_search(
+        self, query: str, user_id: str, topk: int
+    ) -> List[Document]:
         """User-specific semantic search using FAISS"""
         if user_id not in self.user_faiss_indexes or user_id not in self.user_documents:
             return []
 
         query_embedding = await self.embeddings.aembed_query(query)
-        query_vector = np.array([query_embedding]).astype('float32')
+        query_vector = np.array([query_embedding]).astype("float32")
         faiss.normalize_L2(query_vector)
-        
+
         user_docs = self.user_documents[user_id]
-        scores, indices = self.user_faiss_indexes[user_id].search(query_vector, min(topk, len(user_docs)))
-        
+        scores, indices = self.user_faiss_indexes[user_id].search(
+            query_vector, min(topk, len(user_docs))
+        )
+
         results = []
         for score, idx in zip(scores[0], indices[0]):
             if idx < len(user_docs):
                 doc = user_docs[idx].copy()
-                doc.metadata['semantic_score'] = float(score)
+                doc.metadata["semantic_score"] = float(score)
                 results.append(doc)
-        
+
         return results
 
-    async def keyword_search(self, query: str, user_id: str, topk: int) -> List[Document]:
+    async def keyword_search(
+        self, query: str, user_id: str, topk: int
+    ) -> List[Document]:
         """User-specific keyword search using BM25"""
         if user_id not in self.user_bm25_indexes or user_id not in self.user_documents:
             return []
-            
+
         query_tokens = query.lower().split()
         scores = self.user_bm25_indexes[user_id].get_scores(query_tokens)
         top_indices = np.argsort(scores)[::-1][:topk]
-        
+
         results = []
         user_docs = self.user_documents[user_id]
         for idx in top_indices:
             if idx < len(user_docs) and scores[idx] > 0:
                 doc = user_docs[idx].copy()
-                doc.metadata['keyword_score'] = float(scores[idx])
+                doc.metadata["keyword_score"] = float(scores[idx])
                 results.append(doc)
-        
+
         return results
 
-    def combine_results(self, semantic_results: List[Document], keyword_results: List[Document]) -> List[Document]:
+    def combine_results(
+        self, semantic_results: List[Document], keyword_results: List[Document]
+    ) -> List[Document]:
         """Combine semantic and keyword results with weighting"""
         alpha = self.hybrid_config["semantic_weight"]
         score_map = {}
-        
+
         for doc in semantic_results:
-            chunk_id = doc.metadata.get('chunk_id', str(hash(doc.page_content)))
+            chunk_id = doc.metadata.get("chunk_id", str(hash(doc.page_content)))
             score_map[chunk_id] = {
-                'semantic': doc.metadata.get('semantic_score', 0),
-                'keyword': 0,
-                'doc': doc
+                "semantic": doc.metadata.get("semantic_score", 0),
+                "keyword": 0,
+                "doc": doc,
             }
-        
+
         for doc in keyword_results:
-            chunk_id = doc.metadata.get('chunk_id', str(hash(doc.page_content)))
+            chunk_id = doc.metadata.get("chunk_id", str(hash(doc.page_content)))
             if chunk_id not in score_map:
-                score_map[chunk_id] = {'semantic': 0, 'keyword': 0, 'doc': doc}
-            score_map[chunk_id]['keyword'] = doc.metadata.get('keyword_score', 0)
-        
+                score_map[chunk_id] = {"semantic": 0, "keyword": 0, "doc": doc}
+            score_map[chunk_id]["keyword"] = doc.metadata.get("keyword_score", 0)
+
         combined_results = []
-        max_keyword_score = max([scores['keyword'] for scores in score_map.values()]) or 1.0
-        
+        max_keyword_score = (
+            max([scores["keyword"] for scores in score_map.values()]) or 1.0
+        )
+
         for chunk_id, scores in score_map.items():
-            keyword_score = scores['keyword'] / max_keyword_score if max_keyword_score > 0 else 0
-            combined_score = alpha * scores['semantic'] + (1 - alpha) * keyword_score
-            doc = scores['doc']
-            doc.metadata['combined_score'] = combined_score
+            keyword_score = (
+                scores["keyword"] / max_keyword_score if max_keyword_score > 0 else 0
+            )
+            combined_score = alpha * scores["semantic"] + (1 - alpha) * keyword_score
+            doc = scores["doc"]
+            doc.metadata["combined_score"] = combined_score
             combined_results.append(doc)
-        
-        combined_results.sort(key=lambda x: x.metadata.get('combined_score', 0), reverse=True)
+
+        combined_results.sort(
+            key=lambda x: x.metadata.get("combined_score", 0), reverse=True
+        )
         return combined_results
 
     async def expand_query(self, query: str) -> str:
@@ -733,11 +787,11 @@ class RAGService:
             expansion_prompt = f"""Expand this search query with 2-3 related terms or synonyms that would help find relevant information:
 Original query: {query}
 Return the expanded query (original + related terms):"""
-            
+
             messages = [HumanMessage(content=expansion_prompt)]
             response = await self.text_llm.ainvoke(messages)
             expanded = response.content.strip()
-            
+
             return expanded if len(expanded) > len(query) else query
         except Exception:
             return query
@@ -746,33 +800,37 @@ Return the expanded query (original + related terms):"""
         """Remove duplicate documents based on chunk_id or content hash"""
         seen_ids = set()
         unique_results = []
-        
+
         for doc in results:
-            chunk_id = doc.metadata.get('chunk_id') or str(hash(doc.page_content))
+            chunk_id = doc.metadata.get("chunk_id") or str(hash(doc.page_content))
             if chunk_id not in seen_ids:
                 seen_ids.add(chunk_id)
                 unique_results.append(doc)
-        
-        unique_results.sort(key=lambda x: x.metadata.get('combined_score', 0), reverse=True)
+
+        unique_results.sort(
+            key=lambda x: x.metadata.get("combined_score", 0), reverse=True
+        )
         return unique_results
 
     def get_max_relevance_score(self, results: List[Document]) -> float:
         """Get the maximum relevance score from search results"""
         if not results:
             return 0.0
-        
+
         max_score = 0.0
         for doc in results:
-            semantic_score = doc.metadata.get('semantic_score', 0.0)
-            keyword_score = doc.metadata.get('keyword_score', 0.0) 
-            combined_score = doc.metadata.get('combined_score', 0.0)
-            
+            semantic_score = doc.metadata.get("semantic_score", 0.0)
+            keyword_score = doc.metadata.get("keyword_score", 0.0)
+            combined_score = doc.metadata.get("combined_score", 0.0)
+
             max_score = max(max_score, semantic_score, keyword_score, combined_score)
-        
+
         return max_score
 
     # Document processing methods
-    async def process_multimodal_document(self, filename: str, content: bytes, user_id: str) -> Dict[str, Any]:
+    async def process_multimodal_document(
+        self, filename: str, content: bytes, user_id: str
+    ) -> Dict[str, Any]:
         """Process various document types with user-specific storage"""
         try:
             # Validate user_id
@@ -780,33 +838,45 @@ Return the expanded query (original + related terms):"""
                 raise ValueError("user_id is required for document processing")
 
             self._ensure_user_data(user_id)
-            
+
             file_ext = Path(filename).suffix.lower()
-            
+
             # Create user-specific storage directory
             user_storage_path = Path(f"storage/users/{user_id}/documents")
             user_storage_path.mkdir(parents=True, exist_ok=True)
-            
+
             processing_context = {
                 "user_id": user_id,
                 "filename": filename,
-                "original_filename": filename.split(f"{user_id}_")[1] if f"{user_id}_" in filename else filename,
+                "original_filename": (
+                    filename.split(f"{user_id}_")[1]
+                    if f"{user_id}_" in filename
+                    else filename
+                ),
                 "file_extension": file_ext,
                 "timestamp": datetime.now().isoformat(),
-                "storage_path": str(user_storage_path)
+                "storage_path": str(user_storage_path),
             }
-            
-            if file_ext == '.pdf':
-                return await self.process_pdf_advanced(filename, content, user_id, processing_context)
-            elif file_ext == '.txt':
-                return await self.process_text_file(filename, content, user_id, processing_context)
-            elif file_ext == '.md':
-                return await self.process_markdown_file(filename, content, user_id, processing_context)
-            elif file_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
-                return await self.process_image_file(filename, content, user_id, processing_context)
+
+            if file_ext == ".pdf":
+                return await self.process_pdf_advanced(
+                    filename, content, user_id, processing_context
+                )
+            elif file_ext == ".txt":
+                return await self.process_text_file(
+                    filename, content, user_id, processing_context
+                )
+            elif file_ext == ".md":
+                return await self.process_markdown_file(
+                    filename, content, user_id, processing_context
+                )
+            elif file_ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif"]:
+                return await self.process_image_file(
+                    filename, content, user_id, processing_context
+                )
             else:
                 raise ValueError(f"Unsupported file type: {file_ext}")
-                
+
         except Exception as e:
             await self.log_user_processing_error(user_id, filename, str(e))
             print(f"Failed to process {filename} for user {user_id}: {e}")
@@ -820,13 +890,15 @@ Return the expanded query (original + related terms):"""
                 "filename": filename,
                 "error": error,
                 "timestamp": datetime.now().isoformat(),
-                "status": "failed"
+                "status": "failed",
             }
             print(f"Logged error for user {user_id}: {error}")
         except Exception as log_error:
             print(f"Failed to log error for user {user_id}: {log_error}")
 
-    async def process_pdf_advanced(self, filename: str, content: bytes, user_id: str, context: Dict) -> Dict[str, Any]:
+    async def process_pdf_advanced(
+        self, filename: str, content: bytes, user_id: str, context: Dict
+    ) -> Dict[str, Any]:
         """Advanced PDF processing with user-specific storage"""
         try:
             # Save file in user directory
@@ -837,18 +909,22 @@ Return the expanded query (original + related terms):"""
             # Extract text using PyPDF2
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
             full_text = ""
-            
+
             for page in pdf_reader.pages:
                 full_text += page.extract_text() + "\n"
-            
+
             # Process text content for this user
-            return await self.process_text_content(filename, full_text, 'pdf', user_id, context)
-            
+            return await self.process_text_content(
+                filename, full_text, "pdf", user_id, context
+            )
+
         except Exception as e:
             print(f"PDF processing error for user {user_id}: {e}")
             raise
 
-    async def process_text_file(self, filename: str, content: bytes, user_id: str, context: Dict) -> Dict[str, Any]:
+    async def process_text_file(
+        self, filename: str, content: bytes, user_id: str, context: Dict
+    ) -> Dict[str, Any]:
         """Process plain text file for specific user"""
         try:
             # Save file in user directory
@@ -856,13 +932,17 @@ Return the expanded query (original + related terms):"""
             with open(file_path, "wb") as f:
                 f.write(content)
 
-            text = content.decode('utf-8')
-            return await self.process_text_content(filename, text, 'text', user_id, context)
+            text = content.decode("utf-8")
+            return await self.process_text_content(
+                filename, text, "text", user_id, context
+            )
         except Exception as e:
             print(f"Text file processing error for user {user_id}: {e}")
             raise
 
-    async def process_markdown_file(self, filename: str, content: bytes, user_id: str, context: Dict) -> Dict[str, Any]:
+    async def process_markdown_file(
+        self, filename: str, content: bytes, user_id: str, context: Dict
+    ) -> Dict[str, Any]:
         """Process markdown file with user-specific handling"""
         try:
             # Save file in user directory
@@ -870,132 +950,152 @@ Return the expanded query (original + related terms):"""
             with open(file_path, "wb") as f:
                 f.write(content)
 
-            text = content.decode('utf-8')
-            
+            text = content.decode("utf-8")
+
             # Try markdown-aware splitting first
             try:
                 md_docs = self.md_splitter.split_text(text)
                 if md_docs:
                     docs = []
                     for i, doc in enumerate(md_docs):
-                        docs.append(Document(
-                            page_content=doc.page_content,
-                            metadata={
-                                'source': context["original_filename"],
-                                'chunk_id': f"{user_id}_{filename}_md_{i}",
-                                'type': 'markdown',
-                                'user_id': user_id,
-                                'timestamp': context["timestamp"]
-                            }
-                        ))
-                    
+                        docs.append(
+                            Document(
+                                page_content=doc.page_content,
+                                metadata={
+                                    "source": context["original_filename"],
+                                    "chunk_id": f"{user_id}_{filename}_md_{i}",
+                                    "type": "markdown",
+                                    "user_id": user_id,
+                                    "timestamp": context["timestamp"],
+                                },
+                            )
+                        )
+
                     await self.index_user_documents(docs, user_id)
                     return {
-                        'user_id': user_id,
-                        'filename': context["original_filename"],
-                        'chunks_processed': len(docs),
-                        'status': 'success',
-                        'type': 'markdown',
-                        'file_path': str(file_path)
+                        "user_id": user_id,
+                        "filename": context["original_filename"],
+                        "chunks_processed": len(docs),
+                        "status": "success",
+                        "type": "markdown",
+                        "file_path": str(file_path),
                     }
             except:
                 pass
-            
+
             # Fallback to regular text processing
-            return await self.process_text_content(filename, text, 'markdown', user_id, context)
-            
+            return await self.process_text_content(
+                filename, text, "markdown", user_id, context
+            )
+
         except Exception as e:
             print(f"Markdown processing error for user {user_id}: {e}")
             raise
 
-    async def process_image_file(self, filename: str, content: bytes, user_id: str, context: Dict) -> Dict[str, Any]:
+    async def process_image_file(
+        self, filename: str, content: bytes, user_id: str, context: Dict
+    ) -> Dict[str, Any]:
         """Process image file for specific user using vision model"""
         try:
             # Save file in user images directory
             user_images_path = Path(f"storage/users/{user_id}/images")
             user_images_path.mkdir(parents=True, exist_ok=True)
-            
+
             file_path = user_images_path / filename
             with open(file_path, "wb") as f:
                 f.write(content)
 
             # Encode image to base64
-            base64_image = base64.b64encode(content).decode('utf-8')
-            
+            base64_image = base64.b64encode(content).decode("utf-8")
+
             # Use vision model to describe image
             messages = [
-                HumanMessage(content=[
-                    {"type": "text", "text": "Describe this image in detail, including any text, objects, people, and context you can see."},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                ])
+                HumanMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "Describe this image in detail, including any text, objects, people, and context you can see.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
+                        },
+                    ]
+                )
             ]
-            
+
             response = await self.vision_llm.ainvoke(messages)
             description = response.content.strip()
-            
+
             # Create document from description
             doc = Document(
                 page_content=description,
                 metadata={
-                    'source': context["original_filename"],
-                    'chunk_id': f"{user_id}_{filename}_img_0",
-                    'type': 'image',
-                    'user_id': user_id,
-                    'timestamp': context["timestamp"]
-                }
+                    "source": context["original_filename"],
+                    "chunk_id": f"{user_id}_{filename}_img_0",
+                    "type": "image",
+                    "user_id": user_id,
+                    "timestamp": context["timestamp"],
+                },
             )
-            
+
             await self.index_user_documents([doc], user_id)
-            
+
             # Cache the image for this user
             self.user_image_cache[user_id][filename] = base64_image
-            
+
             return {
-                'user_id': user_id,
-                'filename': context["original_filename"],
-                'chunks_processed': 1,
-                'status': 'success',
-                'type': 'image',
-                'description': description,
-                'file_path': str(file_path)
+                "user_id": user_id,
+                "filename": context["original_filename"],
+                "chunks_processed": 1,
+                "status": "success",
+                "type": "image",
+                "description": description,
+                "file_path": str(file_path),
             }
-            
+
         except Exception as e:
             print(f"Image processing error for user {user_id}: {e}")
             raise
 
-    async def process_text_content(self, filename: str, text: str, doc_type: str, user_id: str, context: Dict) -> Dict[str, Any]:
+    async def process_text_content(
+        self, filename: str, text: str, doc_type: str, user_id: str, context: Dict
+    ) -> Dict[str, Any]:
         """Process text content into user-specific chunks"""
         try:
             # Split into chunks
             chunks = self.text_splitter.split_text(text)
-            
+
             # Create document objects with user-specific metadata
             docs = []
             for i, chunk in enumerate(chunks):
-                docs.append(Document(
-                    page_content=chunk,
-                    metadata={
-                        'source': context["original_filename"],
-                        'chunk_id': f"{user_id}_{filename}_{i}",
-                        'type': doc_type,
-                        'user_id': user_id,
-                        'timestamp': context["timestamp"]
-                    }
-                ))
-            
+                docs.append(
+                    Document(
+                        page_content=chunk,
+                        metadata={
+                            "source": context["original_filename"],
+                            "chunk_id": f"{user_id}_{filename}_{i}",
+                            "type": doc_type,
+                            "user_id": user_id,
+                            "timestamp": context["timestamp"],
+                        },
+                    )
+                )
+
             # Index documents for this user
             await self.index_user_documents(docs, user_id)
-            
+
             return {
-                'user_id': user_id,
-                'filename': context["original_filename"],
-                'chunks_processed': len(chunks),
-                'status': 'success',
-                'type': doc_type,
-                'file_path': context.get("storage_path", "")
+                "user_id": user_id,
+                "filename": context["original_filename"],
+                "chunks_processed": len(chunks),
+                "status": "success",
+                "type": doc_type,
+                "file_path": context.get("storage_path", ""),
             }
-            
+
         except Exception as e:
             print(f"Text content processing error for user {user_id}: {e}")
             raise
@@ -1004,29 +1104,31 @@ Return the expanded query (original + related terms):"""
         """Index documents in user-specific FAISS and BM25 indexes"""
         if not docs:
             return
-        
+
         self._ensure_user_data(user_id)
-        
+
         # Generate embeddings
         texts = [doc.page_content for doc in docs]
         embeddings = await self.embeddings.aembed_documents(texts)
-        
+
         # Build or update user's FAISS index
         if user_id not in self.user_faiss_indexes:
             dimension = len(embeddings[0])
             self.user_faiss_indexes[user_id] = faiss.IndexFlatIP(dimension)
-        
-        embeddings_array = np.array(embeddings).astype('float32')
+
+        embeddings_array = np.array(embeddings).astype("float32")
         faiss.normalize_L2(embeddings_array)
         self.user_faiss_indexes[user_id].add(embeddings_array)
-        
+
         # Build or update user's BM25 index
         self.user_documents[user_id].extend(docs)
         all_user_texts = [doc.page_content for doc in self.user_documents[user_id]]
         tokenized_docs = [text.lower().split() for text in all_user_texts]
         self.user_bm25_indexes[user_id] = BM25Okapi(tokenized_docs)
-        
-        print(f"Indexed {len(docs)} chunks for user {user_id}. Total user documents: {len(self.user_documents[user_id])}")
+
+        print(
+            f"Indexed {len(docs)} chunks for user {user_id}. Total user documents: {len(self.user_documents[user_id])}"
+        )
 
     async def clear_user_documents(self, user_id: str):
         """Clear all documents and indexes for a specific user"""
@@ -1040,7 +1142,7 @@ Return the expanded query (original + related terms):"""
             del self.user_faiss_indexes[user_id]
         if user_id in self.user_bm25_indexes:
             del self.user_bm25_indexes[user_id]
-        
+
         print(f"All documents cleared for user {user_id}")
 
     async def clear_all_documents(self):
@@ -1056,43 +1158,42 @@ Return the expanded query (original + related terms):"""
         """Get statistics about a user's loaded documents"""
         if user_id not in self.user_documents or not self.user_documents[user_id]:
             return {
-                'user_id': user_id,
-                'has_documents': False,
-                'document_count': 0,
-                'total_chunks': 0,
-                'sources': []
+                "user_id": user_id,
+                "has_documents": False,
+                "document_count": 0,
+                "total_chunks": 0,
+                "sources": [],
             }
-        
+
         user_docs = self.user_documents[user_id]
-        sources = list(set(doc.metadata.get('source', 'unknown') for doc in user_docs))
-        
+        sources = list(set(doc.metadata.get("source", "unknown") for doc in user_docs))
+
         return {
-            'user_id': user_id,
-            'has_documents': True,
-            'document_count': len(sources),
-            'total_chunks': len(user_docs),
-            'sources': sources
+            "user_id": user_id,
+            "has_documents": True,
+            "document_count": len(sources),
+            "total_chunks": len(user_docs),
+            "sources": sources,
         }
 
     def get_all_users_stats(self) -> Dict[str, Any]:
         """Get statistics for all users"""
         total_users = len(self.user_documents)
         total_documents = sum(len(docs) for docs in self.user_documents.values())
-        
+
         user_stats = {}
         for user_id in self.user_documents:
             user_stats[user_id] = self.get_user_document_stats(user_id)
-        
+
         return {
-            'total_users': total_users,
-            'total_documents': total_documents,
-            'user_stats': user_stats
+            "total_users": total_users,
+            "total_documents": total_documents,
+            "user_stats": user_stats,
         }
+
 
 # Global instance
 rag_service = RAGService()
-
-
 
 ================================================================================
 
@@ -1102,26 +1203,28 @@ rag_service = RAGService()
 ================================================================================
 
 # path: app/routes/chat.py
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
-from fastapi.responses import StreamingResponse
 import asyncio
-from typing import List, Optional
-import time
 import hashlib
 import json
-from pathlib import Path
+import time
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 
-from app.models.schemas import (
-    MessageRequest, MessageResponse, ConversationCreate, 
-    ConversationResponse, RAGQueryRequest, RAGResponse, 
-    ChatResponse, FileUploadResponse, MessageType
-)
+from fastapi import (APIRouter, BackgroundTasks, File, Form, HTTPException,
+                     UploadFile)
+from fastapi.responses import StreamingResponse
+
 from app.database.connection import db_manager
+from app.models.schemas import (ChatResponse, ConversationCreate,
+                                ConversationResponse, FileUploadResponse,
+                                MessageRequest, MessageResponse, MessageType,
+                                RAGQueryRequest, RAGResponse)
 from app.services.cache_service import cache_service
 from app.services.rag_service import rag_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
 
 @router.post("/conversations", response_model=ConversationResponse)
 async def create_conversation(conversation: ConversationCreate):
@@ -1136,15 +1239,18 @@ async def create_conversation(conversation: ConversationCreate):
             result = await conn.fetchrow(
                 query, conversation.user_id, conversation.title
             )
-            
+
             return ConversationResponse(
-                id=result['id'],
-                user_id=result['user_id'],
-                title=result['title'],
-                created_at=result['created_at']
+                id=result["id"],
+                user_id=result["user_id"],
+                title=result["title"],
+                created_at=result["created_at"],
             )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create conversation: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create conversation: {str(e)}"
+        )
+
 
 @router.get("/conversations", response_model=List[ConversationResponse])
 async def list_conversations(user_id: str, limit: int = 20):
@@ -1162,79 +1268,90 @@ async def list_conversations(user_id: str, limit: int = 20):
                 LIMIT $2
             """
             results = await conn.fetch(query, user_id, limit)
-            
+
             return [
                 ConversationResponse(
-                    id=row['id'],
-                    user_id=row['user_id'],
-                    title=row['title'],
-                    created_at=row['created_at'],
-                    message_count=row['message_count']
-                ) for row in results
+                    id=row["id"],
+                    user_id=row["user_id"],
+                    title=row["title"],
+                    created_at=row["created_at"],
+                    message_count=row["message_count"],
+                )
+                for row in results
             ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch conversations: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch conversations: {str(e)}"
+        )
 
 
-
-@router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
+@router.get(
+    "/conversations/{conversation_id}/messages", response_model=List[MessageResponse]
+)
 async def get_conversation_messages(conversation_id: int, limit: int = 50):
     """Get conversation messages - Redis cache first (100ms target)"""
     start_time = time.time()
-    
+
     try:
         # Check Redis cache first...
-        cached_messages = await cache_service.get_recent_messages(str(conversation_id), limit)
+        cached_messages = await cache_service.get_recent_messages(
+            str(conversation_id), limit
+        )
         if cached_messages:
             print(f"Cache hit - {int((time.time() - start_time) * 1000)}ms")
             messages = []
             for msg_data in cached_messages:
                 try:
                     # Add missing required fields
-                    if 'conversation_id' not in msg_data:
-                        msg_data['conversation_id'] = conversation_id
-                    if 'user_id' not in msg_data:
+                    if "conversation_id" not in msg_data:
+                        msg_data["conversation_id"] = conversation_id
+                    if "user_id" not in msg_data:
                         # Get user_id from database for this conversation
                         async with await db_manager.get_connection() as conn:
                             user_result = await conn.fetchrow(
-                                "SELECT user_id FROM messages WHERE conversation_id = $1 LIMIT 1", 
-                                conversation_id
+                                "SELECT user_id FROM messages WHERE conversation_id = $1 LIMIT 1",
+                                conversation_id,
                             )
                             if user_result:
-                                msg_data['user_id'] = user_result['user_id']
+                                msg_data["user_id"] = user_result["user_id"]
                             else:
                                 continue
 
                     # Fix datetime and content handling...
-                    if isinstance(msg_data.get('created_at'), str):
-                        dt_str = msg_data['created_at']
-                        if dt_str.endswith('Z'):
-                            dt_str = dt_str.replace('Z', '+00:00')
-                        elif not dt_str.endswith('+00:00') and 'T' in dt_str:
-                            dt_str = dt_str + '+00:00' if '+' not in dt_str else dt_str
-                        msg_data['created_at'] = datetime.fromisoformat(dt_str)
+                    if isinstance(msg_data.get("created_at"), str):
+                        dt_str = msg_data["created_at"]
+                        if dt_str.endswith("Z"):
+                            dt_str = dt_str.replace("Z", "+00:00")
+                        elif not dt_str.endswith("+00:00") and "T" in dt_str:
+                            dt_str = dt_str + "+00:00" if "+" not in dt_str else dt_str
+                        msg_data["created_at"] = datetime.fromisoformat(dt_str)
 
-                    if isinstance(msg_data.get('content'), str):
+                    if isinstance(msg_data.get("content"), str):
                         try:
-                            msg_data['content'] = json.loads(msg_data['content'])
+                            msg_data["content"] = json.loads(msg_data["content"])
                         except json.JSONDecodeError:
-                            msg_data['content'] = {"text": msg_data['content']}
-                    elif msg_data.get('content') is None:
-                        msg_data['content'] = {"text": ""}
-                    elif not isinstance(msg_data.get('content'), dict):
-                        msg_data['content'] = {"text": str(msg_data['content'])}
+                            msg_data["content"] = {"text": msg_data["content"]}
+                    elif msg_data.get("content") is None:
+                        msg_data["content"] = {"text": ""}
+                    elif not isinstance(msg_data.get("content"), dict):
+                        msg_data["content"] = {"text": str(msg_data["content"])}
 
-                    if 'text' not in msg_data['content']:
-                        if isinstance(msg_data['content'], dict) and len(msg_data['content']) > 0:
-                            msg_data['content']['text'] = str(list(msg_data['content'].values())[0])
+                    if "text" not in msg_data["content"]:
+                        if (
+                            isinstance(msg_data["content"], dict)
+                            and len(msg_data["content"]) > 0
+                        ):
+                            msg_data["content"]["text"] = str(
+                                list(msg_data["content"].values())[0]
+                            )
                         else:
-                            msg_data['content']['text'] = ""
+                            msg_data["content"]["text"] = ""
 
                     messages.append(MessageResponse(**msg_data))
                 except Exception as e:
                     print(f"Error processing cached message: {e}")
                     continue
-            
+
             if messages:
                 return messages
 
@@ -1248,11 +1365,11 @@ async def get_conversation_messages(conversation_id: int, limit: int = 50):
             LIMIT $2
             """
             results = await conn.fetch(query, conversation_id, limit)
-            
+
             messages = []
             for row in results:
                 try:
-                    content = row['content']
+                    content = row["content"]
                     if isinstance(content, str):
                         try:
                             content = json.loads(content)
@@ -1262,35 +1379,39 @@ async def get_conversation_messages(conversation_id: int, limit: int = 50):
                         content = {"text": ""}
                     elif not isinstance(content, dict):
                         content = {"text": str(content)}
-                    
-                    if 'text' not in content:
+
+                    if "text" not in content:
                         if isinstance(content, dict) and len(content) > 0:
-                            content['text'] = str(list(content.values())[0])
+                            content["text"] = str(list(content.values())[0])
                         else:
-                            content['text'] = ""
+                            content["text"] = ""
 
                     message = MessageResponse(
-                        id=row['id'],
-                        conversation_id=row['conversation_id'],
-                        user_id=row['user_id'],
+                        id=row["id"],
+                        conversation_id=row["conversation_id"],
+                        user_id=row["user_id"],
                         content=content,
-                        message_type=MessageType(row['message_type']),
-                        created_at=row['created_at']
+                        message_type=MessageType(row["message_type"]),
+                        created_at=row["created_at"],
                     )
                     messages.append(message)
                 except Exception as e:
-                    print(f"Error processing DB message {row.get('id', 'unknown')}: {e}")
+                    print(
+                        f"Error processing DB message {row.get('id', 'unknown')}: {e}"
+                    )
                     continue
 
             print(f"DB query - {int((time.time() - start_time) * 1000)}ms")
             return messages
-            
+
     except Exception as e:
         print(f"Error in get_conversation_messages: {e}")
         import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
 
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch messages: {str(e)}"
+        )
 
 
 @router.post("/messages/stream")
@@ -1299,19 +1420,23 @@ async def send_message_stream(request: MessageRequest):
     try:
         # Validate request
         if not request.content.strip():
-            raise HTTPException(status_code=400, detail="Message content cannot be empty")
-        
+            raise HTTPException(
+                status_code=400, detail="Message content cannot be empty"
+            )
+
         # Create or get conversation
-        conversation_id = await get_or_create_conversation(request.user_id, request.conversation_id)
-        
+        conversation_id = await get_or_create_conversation(
+            request.user_id, request.conversation_id
+        )
+
         # Save user message
         user_message = await save_message(
             conversation_id=conversation_id,
             user_id=request.user_id,
             content={"text": request.content},
-            message_type="user"
+            message_type="user",
         )
-        
+
         # Cache user message
         await cache_service.cache_message(
             str(conversation_id),
@@ -1319,10 +1444,10 @@ async def send_message_stream(request: MessageRequest):
                 "id": user_message["id"],
                 "content": user_message["content"],
                 "message_type": user_message["message_type"],
-                "created_at": user_message["created_at"].isoformat()
-            }
+                "created_at": user_message["created_at"].isoformat(),
+            },
         )
-        
+
         # Generate streaming response
         return StreamingResponse(
             generate_ai_response(request.content, conversation_id, request.user_id),
@@ -1331,24 +1456,28 @@ async def send_message_stream(request: MessageRequest):
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "*"
-            }
+                "Access-Control-Allow-Headers": "*",
+            },
         )
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process message: {str(e)}"
+        )
 
 
 async def generate_ai_response(query: str, conversation_id: int, user_id: str):
     """Generate streaming AI response"""
     try:
         yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id})}\n\n"
-        
+
         full_response = ""
         sources = []
-        
+
         # FIX: Stream response from RAG service with user_id
-        async for chunk in rag_service.query(query, user_id=user_id):  # Added user_id parameter
+        async for chunk in rag_service.query(
+            query, user_id=user_id
+        ):  # Added user_id parameter
             if chunk.get("type") == "chunk":
                 content = chunk.get("content", "")
                 full_response += content
@@ -1359,15 +1488,15 @@ async def generate_ai_response(query: str, conversation_id: int, user_id: str):
             elif chunk.get("type") == "error":
                 yield f"data: {json.dumps({'type': 'error', 'message': chunk.get('message', 'Unknown error')})}\n\n"
                 return
-        
+
         # Save assistant message
         assistant_message = await save_message(
             conversation_id=conversation_id,
             user_id=user_id,
             content={"text": full_response, "sources": sources},
-            message_type="assistant"
+            message_type="assistant",
         )
-        
+
         # Cache assistant message
         await cache_service.cache_message(
             str(conversation_id),
@@ -1375,45 +1504,54 @@ async def generate_ai_response(query: str, conversation_id: int, user_id: str):
                 "id": assistant_message["id"],
                 "content": assistant_message["content"],
                 "message_type": assistant_message["message_type"],
-                "created_at": assistant_message["created_at"].isoformat()
-            }
+                "created_at": assistant_message["created_at"].isoformat(),
+            },
         )
-        
+
         yield f"data: {json.dumps({'type': 'complete', 'sources': sources, 'message_id': assistant_message['id']})}\n\n"
-        
+
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
-
-async def get_or_create_conversation(user_id: str, conversation_id: Optional[int] = None) -> int:
+async def get_or_create_conversation(
+    user_id: str, conversation_id: Optional[int] = None
+) -> int:
     """Get existing conversation or create new one"""
     if conversation_id:
         # Verify conversation exists and belongs to user
         async with await db_manager.get_connection() as conn:
             result = await conn.fetchrow(
                 "SELECT id FROM conversations WHERE id = $1 AND user_id = $2",
-                conversation_id, user_id
+                conversation_id,
+                user_id,
             )
             if result:
                 return conversation_id
-    
+
     # Create new conversation
     async with await db_manager.get_connection() as conn:
         result = await conn.fetchrow(
             "INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id",
-            user_id, "New Conversation"
+            user_id,
+            "New Conversation",
         )
         return result["id"]
 
-async def save_message(conversation_id: int, user_id: str, content: dict, message_type: str) -> dict:
+
+async def save_message(
+    conversation_id: int, user_id: str, content: dict, message_type: str
+) -> dict:
     """Save message to database"""
     async with await db_manager.get_connection() as conn:
         result = await conn.fetchrow(
             """INSERT INTO messages (conversation_id, user_id, content, message_type) 
                VALUES ($1, $2, $3, $4) 
                RETURNING id, conversation_id, user_id, content, message_type, created_at""",
-            conversation_id, user_id, json.dumps(content), message_type
+            conversation_id,
+            user_id,
+            json.dumps(content),
+            message_type,
         )
         return dict(result)
 
@@ -1422,44 +1560,42 @@ async def stream_rag_response(query: str):
     """Stream RAG response using OpenAI streaming API"""
     try:
         # Get relevant documents first
-        rag_result = await rag_service.query(
-                query, 
-                topk=5, 
-                relevance_threshold=0.3
-            )
+        rag_result = await rag_service.query(query, topk=5, relevance_threshold=0.3)
 
         context = "\n".join([doc for doc in rag_result.get("sources", [])])
-        
+
         # Create streaming OpenAI request
         from openai import AsyncOpenAI
+
         client = AsyncOpenAI()
-        
+
         messages = [
-            {"role": "system", "content": f"This is the context provided by the user. If you find the answer to the query in the context, then answer based on that, else use your own knowlege to answer the question: {context}"},
-            {"role": "user", "content": query}
+            {
+                "role": "system",
+                "content": f"This is the context provided by the user. If you find the answer to the query in the context, then answer based on that, else use your own knowlege to answer the question: {context}",
+            },
+            {"role": "user", "content": query},
         ]
-        
+
         stream = await client.chat.completions.create(
             model="o3-mini",
             messages=messages,
             stream=True,
-             
         )
-        
+
         async for chunk in stream:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
-                
-    except Exception as e:
-        yield f"\n\nError: {str(e)}"    
 
+    except Exception as e:
+        yield f"\n\nError: {str(e)}"
 
 
 @router.post("/messages", response_model=ChatResponse)
 async def send_message(message_req: MessageRequest):
     """Send message with enhanced multimodal RAG response (200ms target)"""
     start_time = time.time()
-    
+
     try:
         # Create conversation if needed
         conversation_id = message_req.conversation_id
@@ -1467,286 +1603,324 @@ async def send_message(message_req: MessageRequest):
             async with await db_manager.get_connection() as conn:
                 conv_result = await conn.fetchrow(
                     "INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id",
-                    message_req.user_id, "New Conversation"
+                    message_req.user_id,
+                    "New Conversation",
                 )
-                conversation_id = conv_result['id']
-        
+                conversation_id = conv_result["id"]
+
         # Convert dict to JSON string for database storage
         user_content_dict = {"text": message_req.content}
         user_content_json = json.dumps(user_content_dict)
-        
+
         # Store user message
         async with await db_manager.get_connection() as conn:
-            user_msg_result = await conn.fetchrow("""
+            user_msg_result = await conn.fetchrow(
+                """
                 INSERT INTO messages (conversation_id, user_id, content, message_type) 
                 VALUES ($1, $2, $3, $4) 
                 RETURNING id, conversation_id, user_id, content, message_type, created_at
-            """, conversation_id, message_req.user_id, 
-                user_content_json, MessageType.USER.value
+            """,
+                conversation_id,
+                message_req.user_id,
+                user_content_json,
+                MessageType.USER.value,
             )
-        
+
         # Parse JSON string back to dict for MessageResponse
-        user_content_from_db = user_msg_result['content']
+        user_content_from_db = user_msg_result["content"]
         if isinstance(user_content_from_db, str):
             user_content_parsed = json.loads(user_content_from_db)
         else:
             user_content_parsed = user_content_from_db
-        
+
         user_message = MessageResponse(
-            id=user_msg_result['id'],
-            conversation_id=user_msg_result['conversation_id'],
-            user_id=user_msg_result['user_id'],
+            id=user_msg_result["id"],
+            conversation_id=user_msg_result["conversation_id"],
+            user_id=user_msg_result["user_id"],
             content=user_content_parsed,
-            message_type=MessageType(user_msg_result['message_type']),
-            created_at=user_msg_result['created_at']
+            message_type=MessageType(user_msg_result["message_type"]),
+            created_at=user_msg_result["created_at"],
         )
-        
+
         # Cache user message
         await cache_service.cache_message(
-            str(conversation_id), 
-            user_message.model_dump(mode='json')
+            str(conversation_id), user_message.model_dump(mode="json")
         )
-        
+
         # FIX: Generate Enhanced RAG response if user has documents
         rag_response = None
-        if await rag_service.has_documents(message_req.user_id):  # Added user_id parameter
+        if await rag_service.has_documents(
+            message_req.user_id
+        ):  # Added user_id parameter
             rag_start = time.time()
-            
+
             # Check cache first
             query_hash = hashlib.md5(
                 f"{message_req.content}:{conversation_id}:{message_req.user_id}".encode()
             ).hexdigest()
             cached_rag = await cache_service.get_rag_response(query_hash)
-            
+
             if cached_rag:
                 rag_response = RAGResponse(
                     answer=cached_rag,
                     sources=[],
                     cached=True,
-                    response_time_ms=int((time.time() - rag_start) * 1000)
+                    response_time_ms=int((time.time() - rag_start) * 1000),
                 )
             else:
                 # FIX: Generate new multimodal RAG response with user_id
                 rag_result = await rag_service.query(
-                    message_req.content, 
+                    message_req.content,
                     user_id=message_req.user_id,  # Added user_id parameter
-                    topk=5, 
-                    relevance_threshold=0.3
+                    topk=5,
+                    relevance_threshold=0.3,
                 )
-                
+
                 # Convert dict to JSON string for database storage
                 assistant_content_dict = {
                     "text": rag_result["answer"],
                     "sources": rag_result["sources"],
-                    "search_method": rag_result.get("search_method", "hybrid_multimodal"),
-                    "response_type": "rag"
+                    "search_method": rag_result.get(
+                        "search_method", "hybrid_multimodal"
+                    ),
+                    "response_type": "rag",
                 }
                 assistant_content_json = json.dumps(assistant_content_dict)
-                
+
                 async with await db_manager.get_connection() as conn:
-                    assistant_msg_result = await conn.fetchrow("""
+                    assistant_msg_result = await conn.fetchrow(
+                        """
                         INSERT INTO messages (conversation_id, user_id, content, message_type) 
                         VALUES ($1, $2, $3, $4)
                         RETURNING id, conversation_id, user_id, content, message_type, created_at
-                    """, conversation_id, "assistant", 
+                    """,
+                        conversation_id,
+                        "assistant",
                         assistant_content_json,
-                        MessageType.ASSISTANT.value
+                        MessageType.ASSISTANT.value,
                     )
-                
+
                 # Cache RAG response
                 await cache_service.cache_rag_response(query_hash, rag_result["answer"])
-                
+
                 rag_response = RAGResponse(
                     answer=rag_result["answer"],
                     sources=rag_result["sources"],
                     cached=False,
-                    response_time_ms=int((time.time() - rag_start) * 1000)
+                    response_time_ms=int((time.time() - rag_start) * 1000),
                 )
-                
+
                 # Parse and cache assistant message
-                assistant_content_from_db = assistant_msg_result['content']
+                assistant_content_from_db = assistant_msg_result["content"]
                 if isinstance(assistant_content_from_db, str):
                     assistant_content_parsed = json.loads(assistant_content_from_db)
                 else:
                     assistant_content_parsed = assistant_content_from_db
-                
+
                 assistant_message = MessageResponse(
-                    id=assistant_msg_result['id'],
-                    conversation_id=assistant_msg_result['conversation_id'],
-                    user_id=assistant_msg_result['user_id'],
+                    id=assistant_msg_result["id"],
+                    conversation_id=assistant_msg_result["conversation_id"],
+                    user_id=assistant_msg_result["user_id"],
                     content=assistant_content_parsed,
-                    message_type=MessageType(assistant_msg_result['message_type']),
-                    created_at=assistant_msg_result['created_at']
+                    message_type=MessageType(assistant_msg_result["message_type"]),
+                    created_at=assistant_msg_result["created_at"],
                 )
-                
+
                 await cache_service.cache_message(
-                    str(conversation_id), 
-                    assistant_message.model_dump(mode='json')
+                    str(conversation_id), assistant_message.model_dump(mode="json")
                 )
-        
+
         total_time = int((time.time() - start_time) * 1000)
         print(f"âœ… Enhanced message processed - {total_time}ms")
-        
+
         return ChatResponse(message=user_message, rag_response=rag_response)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 
-
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_document(
-    background_tasks: BackgroundTasks, 
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user_id: str = Form(...)
+    user_id: str = Form(...),
 ):
     """Upload single document for RAG (supports PDF, TXT, MD, Images)"""
     try:
         # Enhanced file type validation
-        allowed_extensions = {'.pdf', '.txt', '.md', '.jpg', '.jpeg', '.png', '.bmp', '.gif'}
+        allowed_extensions = {
+            ".pdf",
+            ".txt",
+            ".md",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".bmp",
+            ".gif",
+        }
         file_ext = Path(file.filename).suffix.lower()
-        
+
         if file_ext not in allowed_extensions:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+                status_code=400,
+                detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
             )
-        
+
         # Validate file size (e.g., 50MB limit)
         content = await file.read()
         if len(content) > 50 * 1024 * 1024:  # 50MB
-            raise HTTPException(status_code=400, detail="File too large. Maximum size: 50MB")
-        
+            raise HTTPException(
+                status_code=400, detail="File too large. Maximum size: 50MB"
+            )
+
         # FIX: Process in background with user_id
         background_tasks.add_task(
-            rag_service.process_multimodal_document, 
-            file.filename, 
+            rag_service.process_multimodal_document,
+            file.filename,
             content,
-            user_id  # Added user_id parameter
+            user_id,  # Added user_id parameter
         )
-        
+
         return FileUploadResponse(
             filename=file.filename,
             status="processing",
             chunks_processed=0,
-            message=f"Document '{file.filename}' uploaded successfully, processing in background"
+            message=f"Document '{file.filename}' uploaded successfully, processing in background",
         )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(e)}")
 
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to upload document: {str(e)}"
+        )
 
 
 @router.post("/upload/multiple", response_model=List[FileUploadResponse])
 async def upload_multiple_documents(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    user_id: str = Form(...)
+    user_id: str = Form(...),
 ):
     """Upload multiple documents for RAG context (batch processing)"""
     try:
         if len(files) > 10:  # Limit batch size
             raise HTTPException(status_code=400, detail="Maximum 10 files per batch")
-        
-        allowed_extensions = {'.pdf', '.txt', '.md', '.jpg', '.jpeg', '.png', '.bmp', '.gif'}
+
+        allowed_extensions = {
+            ".pdf",
+            ".txt",
+            ".md",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".bmp",
+            ".gif",
+        }
         responses = []
-        
+
         for file in files:
             file_ext = Path(file.filename).suffix.lower()
-            
+
             if file_ext not in allowed_extensions:
-                responses.append(FileUploadResponse(
-                    filename=file.filename,
-                    status="error",
-                    chunks_processed=0,
-                    message=f"Unsupported file type: {file_ext}"
-                ))
+                responses.append(
+                    FileUploadResponse(
+                        filename=file.filename,
+                        status="error",
+                        chunks_processed=0,
+                        message=f"Unsupported file type: {file_ext}",
+                    )
+                )
                 continue
-            
+
             # Read and validate file
             content = await file.read()
             if len(content) > 50 * 1024 * 1024:  # 50MB per file
-                responses.append(FileUploadResponse(
-                    filename=file.filename,
-                    status="error",
-                    chunks_processed=0,
-                    message="File too large. Maximum size: 50MB"
-                ))
+                responses.append(
+                    FileUploadResponse(
+                        filename=file.filename,
+                        status="error",
+                        chunks_processed=0,
+                        message="File too large. Maximum size: 50MB",
+                    )
+                )
                 continue
-            
+
             # Process in background
             background_tasks.add_task(
-                rag_service.process_multimodal_document,
-                file.filename,
-                content,
-                user_id
+                rag_service.process_multimodal_document, file.filename, content, user_id
             )
-            
-            responses.append(FileUploadResponse(
-                filename=file.filename,
-                status="processing",
-                chunks_processed=0,
-                message="Uploaded successfully, processing in background"
-            ))
-        
+
+            responses.append(
+                FileUploadResponse(
+                    filename=file.filename,
+                    status="processing",
+                    chunks_processed=0,
+                    message="Uploaded successfully, processing in background",
+                )
+            )
+
         return responses
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload documents: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to upload documents: {str(e)}"
+        )
 
 
 @router.post("/rag/query", response_model=RAGResponse)
 async def query_rag(rag_query: RAGQueryRequest):
     """Direct multimodal RAG query endpoint (1.5s target, 500ms if cached)"""
     start_time = time.time()
-    
+
     try:
         # FIX: Check if user has documents
-        if not await rag_service.has_documents(rag_query.user_id):  # Added user_id parameter
+        if not await rag_service.has_documents(
+            rag_query.user_id
+        ):  # Added user_id parameter
             raise HTTPException(status_code=400, detail="No documents uploaded for RAG")
-        
+
         # Enhanced cache key with user context
         cache_key_content = f"{rag_query.query}:{rag_query.user_id}"
         if rag_query.conversation_id:
             cache_key_content += f":{rag_query.conversation_id}"
-            
+
         query_hash = hashlib.md5(cache_key_content.encode()).hexdigest()
         cached_response = await cache_service.get_rag_response(query_hash)
-        
+
         if cached_response:
             return RAGResponse(
                 answer=cached_response,
                 sources=[],
                 cached=True,
-                response_time_ms=int((time.time() - start_time) * 1000)
+                response_time_ms=int((time.time() - start_time) * 1000),
             )
-        
+
         # FIX: Generate new hybrid multimodal response with user_id
         result = await rag_service.query(
-            rag_query.query, 
+            rag_query.query,
             user_id=rag_query.user_id,  # Added user_id parameter
-            topk=5, 
-            relevance_threshold=0.3
+            topk=5,
+            relevance_threshold=0.3,
         )
-        
+
         # Cache the response
         await cache_service.cache_rag_response(query_hash, result["answer"])
-        
+
         response_time = int((time.time() - start_time) * 1000)
-        
+
         # Log performance
         if response_time > 1500:
             print(f"âš ï¸ RAG query exceeded 1.5s target: {response_time}ms")
-        
+
         return RAGResponse(
             answer=result["answer"],
             sources=result["sources"],
             cached=False,
-            response_time_ms=response_time
+            response_time_ms=response_time,
         )
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"RAG query failed: {str(e)}")
+
 
 @router.get("/documents/status")
 async def get_document_status(user_id: str):
@@ -1754,32 +1928,46 @@ async def get_document_status(user_id: str):
     try:
         has_docs = await rag_service.has_documents(user_id)
         total_chunks = len(rag_service.user_documents[user_id]) if has_docs else 0
-        
+
         user_documents = []
         if has_docs:
             # Get unique sources from actual documents
             user_docs = rag_service.user_documents[user_id]
-            sources = list(set(doc.metadata.get("source", "unknown") for doc in user_docs))
-            
+            sources = list(
+                set(doc.metadata.get("source", "unknown") for doc in user_docs)
+            )
+
             for source in sources:
-                user_documents.append({
-                    "filename": source,
-                    "type": "processed",  # or derive from document metadata
-                    "status": "processed",
-                    "user_id": user_id
-                })
-        
+                user_documents.append(
+                    {
+                        "filename": source,
+                        "type": "processed",  # or derive from document metadata
+                        "status": "processed",
+                        "user_id": user_id,
+                    }
+                )
+
         return {
             "user_id": user_id,
             "has_documents": len(user_documents) > 0,
             "document_count": len(user_documents),
             "total_chunks": total_chunks,
             "documents": user_documents,
-            "supported_formats": [".pdf", ".txt", ".md", ".jpg", ".jpeg", ".png", ".bmp", ".gif"]
+            "supported_formats": [
+                ".pdf",
+                ".txt",
+                ".md",
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".bmp",
+                ".gif",
+            ],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get document status: {str(e)}")
-
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get document status: {str(e)}"
+        )
 
 
 @router.delete("/documents/clear")
@@ -1791,20 +1979,20 @@ async def clear_all_documents(user_id: str):
         rag_service.document_metadata = {}
         rag_service.faiss_index = None
         rag_service.bm25_index = None
-        
+
         # Clear related caches
         # Note: In production, you might want to clear only user-specific documents
         await cache_service.redis_client.flushdb()  # Clear all cache (use carefully)
-        
+
         return {
             "message": "All documents cleared successfully",
             "user_id": user_id,
-            "cleared_at": time.time()
+            "cleared_at": time.time(),
         }
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear documents: {str(e)}")
-
-
+        raise HTTPException(
+            status_code=500, detail=f"Failed to clear documents: {str(e)}"
+        )
 
 ================================================================================

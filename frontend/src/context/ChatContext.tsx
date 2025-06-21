@@ -112,7 +112,7 @@ function useChatController() {
       return m;
     });
   /* called once, when the backend sends `type:"complete"` */
-  const finaliseAssistant = (fullText: string, sources?: string[]) =>
+  const finaliseAssistant = (fullText: string | undefined, sources?: string[]) =>
     setMessages(m => {
       const last = m[m.length - 1];
       if (last && last.type === 'assistant') {

@@ -24,9 +24,9 @@ export default function MessageBubble({
       >
         <p>{msg.text || <ChatBubbleLeftEllipsisIcon className="w-5 h-5 animate-pulse" />}</p>
 
-        {msg.sources?.length > 0 && (
+        {msg.sources && msg.sources.length > 0 && (
           <div className="mt-2 pt-2 border-t border-gray-600">
-            <p className="text-xs text-gray-400 mb-1">Sources:</p>
+            <p className="text-xs text-gray-400 mb-1">Sources</p>
             <div className="flex flex-wrap gap-1">
               {msg.sources.map(s => (
                 <span key={s} className="text-xs bg-dark-tertiary px-2 py-1 rounded">
@@ -36,7 +36,9 @@ export default function MessageBubble({
             </div>
           </div>
         )}
-      </div>
+    </div>
+  </div>
+)}      </div>
     </div>
   );
 }
