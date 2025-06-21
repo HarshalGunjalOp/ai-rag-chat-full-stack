@@ -87,9 +87,6 @@ const send = async () => {
   } catch (err: any) {
     console.error("Send message error:", err);
     
-    // Remove the placeholder message on error
-    setMessages(m => m.slice(0, -1));
-    
     // Show user-friendly error
     if (err.message?.includes("fetch")) {
       console.error("Connection error - please try again");
