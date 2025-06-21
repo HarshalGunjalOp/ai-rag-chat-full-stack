@@ -661,16 +661,15 @@ async def upload_multiple_documents(
         )
 
 
+
 @router.post("/rag/query", response_model=RAGResponse)
 async def query_rag(rag_query: RAGQueryRequest):
     """Direct multimodal RAG query endpoint (1.5s target, 500ms if cached)"""
     start_time = time.time()
 
     try:
-        # FIX: Check if user has documents
-        if not await rag_service.has_documents(
-            rag_query.user_id
-        ):  # Added user_id parameter
+        # Check if user has documents
+        if not await rag_service.has_documents(rag_query.user_id):
             raise HTTPException(status_code=400, detail="No documents uploaded for RAG")
 
         # Enhanced cache key with user context
@@ -689,32 +688,35 @@ async def query_rag(rag_query: RAGQueryRequest):
                 response_time_ms=int((time.time() - start_time) * 1000),
             )
 
-        # FIX: Generate new hybrid multimodal response with user_id
-        result = await rag_service.query(
-            rag_query.query,
-            user_id=rag_query.user_id,  # Added user_id parameter
-            topk=5,
-            relevance_threshold=0.3,
-        )
+        # 🔥 FIX: Consume the async generator properly
+        full_answer = ""
+        sources = []
+        
+        async for chunk in rag_service.query(rag_query.query, user_id=rag_query.user_id):
+            if chunk.get("type") == "chunk":
+                full_answer += chunk.get("content", "")
+            elif chunk.get("type") == "complete":
+                sources = chunk.get("sources", [])
+                break
+            elif chunk.get("type") == "error":
+                raise HTTPException(status_code=500, detail=chunk.get("message", "Unknown error"))
 
         # Cache the response
-        await cache_service.cache_rag_response(query_hash, result["answer"])
+        await cache_service.cache_rag_response(query_hash, full_answer)
 
         response_time = int((time.time() - start_time) * 1000)
 
-        # Log performance
-        if response_time > 1500:
-            print(f"âš ï¸ RAG query exceeded 1.5s target: {response_time}ms")
 
         return RAGResponse(
-            answer=result["answer"],
-            sources=result["sources"],
+            answer=full_answer,
+            sources=sources,
             cached=False,
             response_time_ms=response_time,
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"RAG query failed: {str(e)}")
+
 
 
 @router.get("/documents/status")
