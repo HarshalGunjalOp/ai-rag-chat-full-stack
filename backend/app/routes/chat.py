@@ -261,52 +261,163 @@ async def send_message_stream(request: MessageRequest):
         )
 
 
+@router.post("/messages/rag/stream")
+async def send_rag_message_stream(request: MessageRequest):
+    """Send RAG message and stream the response with caching"""
+    
+    def generate_rag_stream():
+        async def _generate():
+            try:
+                rag_start = time.time()
+                
+                # Generate consistent cache key
+                cache_key = cache_service._generate_rag_cache_key(request.content, request.user_id)
+                
+                # Check cache first
+                cached_rag = await cache_service.get_rag_response(cache_key)
+                if cached_rag:
+                    try:
+                        rag_data = json.loads(cached_rag)
+                        content = rag_data.get("content", "")
+                        
+                        if content and content.strip():  # Only use cache if content exists
+                            # Stream cached response
+                            words = content.split(" ")
+                            for word in words:
+                                if word.strip():
+                                    yield f"data: {json.dumps({'type': 'chunk', 'content': word + ' '})}\n\n"
+                                    await asyncio.sleep(0.01)
+                            
+                            # Send completion with cached flag
+                            rag_response = RAGResponse(
+                                answer=content,
+                                sources=rag_data.get("sources", []),
+                                cached=True,
+                                response_time_ms=int((time.time() - rag_start) * 1000)
+                            )
+                            
+                            yield f"data: {json.dumps({'type': 'complete', 'rag_response': rag_response.dict()})}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
+                        else:
+                            # Invalid cache, delete it
+                            await cache_service.delete_cache_key(cache_key)
+                            
+                    except (json.JSONDecodeError, KeyError) as e:
+                        print(f"Cache parsing error: {e}")
+                        await cache_service.delete_cache_key(cache_key)
+
+                # Generate new response
+                full_answer = ""
+                sources = []
+                
+                async for chunk in rag_service.query(request.content, user_id=request.user_id):
+                    if chunk.get("type") == "chunk":
+                        content = chunk.get("content", "")
+                        full_answer += content
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+                    elif chunk.get("type") == "complete":
+                        sources = chunk.get("sources", [])
+                        break
+                    elif chunk.get("type") == "thinking":
+                        yield f"data: {json.dumps({'type': 'thinking', 'message': chunk.get('message', '')})}\n\n"
+                    elif chunk.get("type") == "error":
+                        yield f"data: {json.dumps({'type': 'error', 'message': chunk.get('message', '')})}\n\n"
+                        return
+                
+                # Cache the response if it's valid
+                if full_answer.strip():
+                    cache_data = {
+                        "content": full_answer,
+                        "sources": sources,
+                        "cached": False
+                    }
+                    await cache_service.cache_rag_response(cache_key, json.dumps(cache_data))
+                
+                # Send final response
+                rag_response = RAGResponse(
+                    answer=full_answer,
+                    sources=sources,
+                    cached=False,
+                    response_time_ms=int((time.time() - rag_start) * 1000)
+                )
+                
+                yield f"data: {json.dumps({'type': 'complete', 'rag_response': rag_response.dict()})}\n\n"
+                yield "data: [DONE]\n\n"
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return _generate()
+    
+    return StreamingResponse(
+        generate_rag_stream(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/stream",
+        }
+    )
+
+
+
 async def generate_ai_response(query: str, conversation_id: int, user_id: str):
-    """Generate streaming AI response"""
+    """Generate streaming AI response with improved caching"""
     try:
         yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id})}\n\n"
+        
+        # Generate consistent cache key
+        cache_key = cache_service._generate_rag_cache_key(query, user_id)
+        
+        # Check cache first
+        cached_response = await cache_service.get_rag_response(cache_key)
+        if cached_response:
+            try:
+                response_data = json.loads(cached_response)
+                content = response_data.get("content", "")
+                
+                if content and content.strip():
+                    # Stream cached content
+                    for word in content.split(" "):
+                        if word.strip():
+                            yield f"data: {word + ' '}\n\n"
+                            await asyncio.sleep(0.01)
+                    return
+                else:
+                    # Invalid cache, delete it
+                    await cache_service.delete_cache_key(cache_key)
+            except (json.JSONDecodeError, KeyError):
+                await cache_service.delete_cache_key(cache_key)
 
+        # Generate new response
         full_response = ""
         sources = []
 
-        # FIX: Stream response from RAG service with user_id
-        async for chunk in rag_service.query(
-            query, user_id=user_id
-        ):  # Added user_id parameter
+        async for chunk in rag_service.query(query, user_id=user_id):
             if chunk.get("type") == "chunk":
                 content = chunk.get("content", "")
                 full_response += content
-                yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+                yield f"data: {content}\n\n"
             elif chunk.get("type") == "complete":
                 sources = chunk.get("sources", [])
                 break
             elif chunk.get("type") == "error":
-                yield f"data: {json.dumps({'type': 'error', 'message': chunk.get('message', 'Unknown error')})}\n\n"
+                yield f"data: ERROR: {chunk.get('message', '')}\n\n"
                 return
 
-        # Save assistant message
-        assistant_message = await save_message(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            content={"text": full_response, "sources": sources},
-            message_type="assistant",
-        )
-
-        # Cache assistant message
-        await cache_service.cache_message(
-            str(conversation_id),
-            {
-                "id": assistant_message["id"],
-                "content": assistant_message["content"],
-                "message_type": assistant_message["message_type"],
-                "created_at": assistant_message["created_at"].isoformat(),
-            },
-        )
-
-        yield f"data: {json.dumps({'type': 'complete', 'sources': sources, 'message_id': assistant_message['id']})}\n\n"
+        # Cache the response if valid
+        if full_response.strip():
+            cache_data = {
+                "content": full_response,
+                "sources": sources,
+                "cached": False
+            }
+            await cache_service.cache_rag_response(cache_key, json.dumps(cache_data))
 
     except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        yield f"data: ERROR: {str(e)}\n\n"
 
 
 async def get_or_create_conversation(
@@ -385,153 +496,6 @@ async def stream_rag_response(query: str):
     except Exception as e:
         yield f"\n\nError: {str(e)}"
 
-
-@router.post("/messages", response_model=ChatResponse)
-async def send_message(message_req: MessageRequest):
-    """Send message with enhanced multimodal RAG response (200ms target)"""
-    start_time = time.time()
-
-    try:
-        # Create conversation if needed
-        conversation_id = message_req.conversation_id
-        if not conversation_id:
-            async with await db_manager.get_connection() as conn:
-                conv_result = await conn.fetchrow(
-                    "INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id",
-                    message_req.user_id,
-                    "New Conversation",
-                )
-                conversation_id = conv_result["id"]
-
-        # Convert dict to JSON string for database storage
-        user_content_dict = {"text": message_req.content}
-        user_content_json = json.dumps(user_content_dict)
-
-        # Store user message
-        async with await db_manager.get_connection() as conn:
-            user_msg_result = await conn.fetchrow(
-                """
-                INSERT INTO messages (conversation_id, user_id, content, message_type) 
-                VALUES ($1, $2, $3, $4) 
-                RETURNING id, conversation_id, user_id, content, message_type, created_at
-            """,
-                conversation_id,
-                message_req.user_id,
-                user_content_json,
-                MessageType.USER.value,
-            )
-
-        # Parse JSON string back to dict for MessageResponse
-        user_content_from_db = user_msg_result["content"]
-        if isinstance(user_content_from_db, str):
-            user_content_parsed = json.loads(user_content_from_db)
-        else:
-            user_content_parsed = user_content_from_db
-
-        user_message = MessageResponse(
-            id=user_msg_result["id"],
-            conversation_id=user_msg_result["conversation_id"],
-            user_id=user_msg_result["user_id"],
-            content=user_content_parsed,
-            message_type=MessageType(user_msg_result["message_type"]),
-            created_at=user_msg_result["created_at"],
-        )
-
-        # Cache user message
-        await cache_service.cache_message(
-            str(conversation_id), user_message.model_dump(mode="json")
-        )
-
-        # FIX: Generate Enhanced RAG response if user has documents
-        rag_response = None
-        if await rag_service.has_documents(
-            message_req.user_id
-        ):  # Added user_id parameter
-            rag_start = time.time()
-
-            # Check cache first
-            query_hash = hashlib.md5(
-                f"{message_req.content}:{conversation_id}:{message_req.user_id}".encode()
-            ).hexdigest()
-            cached_rag = await cache_service.get_rag_response(query_hash)
-
-            if cached_rag:
-                rag_response = RAGResponse(
-                    answer=cached_rag,
-                    sources=[],
-                    cached=True,
-                    response_time_ms=int((time.time() - rag_start) * 1000),
-                )
-            else:
-                # FIX: Generate new multimodal RAG response with user_id
-                rag_result = await rag_service.query(
-                    message_req.content,
-                    user_id=message_req.user_id,  # Added user_id parameter
-                    topk=5,
-                    relevance_threshold=0.3,
-                )
-
-                # Convert dict to JSON string for database storage
-                assistant_content_dict = {
-                    "text": rag_result["answer"],
-                    "sources": rag_result["sources"],
-                    "search_method": rag_result.get(
-                        "search_method", "hybrid_multimodal"
-                    ),
-                    "response_type": "rag",
-                }
-                assistant_content_json = json.dumps(assistant_content_dict)
-
-                async with await db_manager.get_connection() as conn:
-                    assistant_msg_result = await conn.fetchrow(
-                        """
-                        INSERT INTO messages (conversation_id, user_id, content, message_type) 
-                        VALUES ($1, $2, $3, $4)
-                        RETURNING id, conversation_id, user_id, content, message_type, created_at
-                    """,
-                        conversation_id,
-                        "assistant",
-                        assistant_content_json,
-                        MessageType.ASSISTANT.value,
-                    )
-
-                # Cache RAG response
-                await cache_service.cache_rag_response(query_hash, rag_result["answer"])
-
-                rag_response = RAGResponse(
-                    answer=rag_result["answer"],
-                    sources=rag_result["sources"],
-                    cached=False,
-                    response_time_ms=int((time.time() - rag_start) * 1000),
-                )
-
-                # Parse and cache assistant message
-                assistant_content_from_db = assistant_msg_result["content"]
-                if isinstance(assistant_content_from_db, str):
-                    assistant_content_parsed = json.loads(assistant_content_from_db)
-                else:
-                    assistant_content_parsed = assistant_content_from_db
-
-                assistant_message = MessageResponse(
-                    id=assistant_msg_result["id"],
-                    conversation_id=assistant_msg_result["conversation_id"],
-                    user_id=assistant_msg_result["user_id"],
-                    content=assistant_content_parsed,
-                    message_type=MessageType(assistant_msg_result["message_type"]),
-                    created_at=assistant_msg_result["created_at"],
-                )
-
-                await cache_service.cache_message(
-                    str(conversation_id), assistant_message.model_dump(mode="json")
-                )
-
-        total_time = int((time.time() - start_time) * 1000)
-        print(f"âœ… Enhanced message processed - {total_time}ms")
-
-        return ChatResponse(message=user_message, rag_response=rag_response)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 
 @router.post("/upload", response_model=FileUploadResponse)

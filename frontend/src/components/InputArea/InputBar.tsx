@@ -47,41 +47,59 @@ export default function InputBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const send = async () => {
-    if (!text.trim()) return;
-    addUserMessage(text.trim());
-    pushAssistantPlaceholder();
-    setText('');
-    setLoading(true);
+  
+const send = async () => {
+  if (!text.trim()) return;
 
-    controllerRef.current = new AbortController();
-    try {
-      const resp = await api.streamMessage(
-        userId,
-        text.trim(),
-        currentConv?.id,
-        controllerRef.current.signal
-      );
-      await consume(
-        resp,
-        chunk => appendStreamChunk(chunk),
-        meta => {
-          finaliseAssistant(undefined, meta.sources);
-          if (!currentConv) {
-            setCurrentConv({
-              id: meta.conversationId,
-              title: meta.fullText.slice(0, 30),
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }
-      );
-    } catch (err) {
-      appendStreamChunk('❌ Error');
-    } finally {
-      setLoading(false);
+  addUserMessage(text.trim());
+  pushAssistantPlaceholder();
+  setText("");
+  setLoading(true);
+  controllerRef.current = new AbortController();
+
+  try {
+    const resp = await api.streamMessage(
+      userId,
+      text.trim(),
+      currentConv?.id,
+      controllerRef.current.signal
+    );
+
+    // Check if response is ok
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
     }
-  };
+
+    await consume(
+      resp,
+      (chunk: string) => appendStreamChunk(chunk),
+      (meta: any) => {
+        finaliseAssistant(undefined, meta?.sources);
+        if (!currentConv && meta?.conversationId) {
+          setCurrentConv({
+            id: meta.conversationId,
+            title: meta.fullText?.slice(0, 30) || "New Chat",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    );
+  } catch (err: any) {
+    console.error("Send message error:", err);
+    
+    // Remove the placeholder message on error
+    setMessages(m => m.slice(0, -1));
+    
+    // Show user-friendly error
+    if (err.message?.includes("fetch")) {
+      console.error("Connection error - please try again");
+    } else {
+      console.error("Failed to send message - please try again");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleUploadDocuments = () => {
     setShowDropdown(false);

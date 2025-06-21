@@ -109,61 +109,106 @@ class RAGService:
             if not user_id or not user_id.strip():
                 yield {"type": "error", "message": "user_id is required"}
                 return
-
+    
             self._ensure_user_data(user_id)
-
-            # Check user-specific cache first
-            cache_key = f"rag:{user_id}:{hash(query)}"
+    
+            # Generate consistent cache key
+            cache_key = cache_service._generate_rag_cache_key(query, user_id)
+            
+            # Check cache first
             cached_response = await cache_service.get_rag_response(cache_key)
-
             if cached_response:
-                response_data = json.loads(cached_response)
-                for chunk in response_data.get("content", "").split():
-                    yield {"type": "chunk", "content": chunk + " "}
-                    await asyncio.sleep(0.01)
-                yield {"type": "complete", "sources": response_data.get("sources", [])}
-                return
-
+                try:
+                    response_data = json.loads(cached_response)
+                    content = response_data.get("content", "")
+                    
+                    if content and content.strip():  # Only use cache if content exists
+                        # Stream the cached content
+                        words = content.split(" ")
+                        for word in words:
+                            if word.strip():
+                                yield {"type": "chunk", "content": word + " "}
+                                await asyncio.sleep(0.01)
+                        
+                        yield {
+                            "type": "complete", 
+                            "sources": response_data.get("sources", []),
+                            "cached": True
+                        }
+                        return
+                    else:
+                        print(f"WARNING: Cached content is empty, deleting cache key: {cache_key}")
+                        await cache_service.delete_cache_key(cache_key)
+                        
+                except (json.JSONDecodeError, KeyError) as e:
+                    print(f"Cache parsing error for key {cache_key}: {e}")
+                    await cache_service.delete_cache_key(cache_key)
+    
             yield {"type": "thinking", "message": "Searching user documents..."}
-
+    
             # Check if user has documents
             if await self.has_documents(user_id):
                 # Search user-specific documents
                 relevant_docs = await self.hybrid_search(
                     query, user_id, self.hybrid_config["default_topk"]
                 )
-
+    
                 if (
                     relevant_docs
                     and self.get_max_relevance_score(relevant_docs)
                     > self.hybrid_config["min_relevance_threshold"]
                 ):
+                    # Generate new response and collect it
+                    full_response = ""
+                    sources = []
+                    
                     async for chunk in self.generate_context_answer_stream(
                         query, relevant_docs, user_id
                     ):
-                        if chunk["type"] == "complete":
-                            # Cache the response
-                            full_response = (
-                                ""  # You'd need to collect this during streaming
-                            )
-                            cache_data = {
-                                "content": full_response,
-                                "sources": chunk.get("sources", []),
-                                "cached": True,
-                            }
-                            await cache_service.cache_rag_response(
-                                cache_key, json.dumps(cache_data)
-                            )
-                        yield chunk
+                        if chunk["type"] == "chunk":
+                            content = chunk.get("content", "")
+                            full_response += content
+                            yield chunk
+                        elif chunk["type"] == "complete":
+                            sources = chunk.get("sources", [])
+                            yield chunk
+                            break
+                        
+                    # Cache the complete response
+                    if full_response.strip():  # Only cache non-empty responses
+                        cache_data = {
+                            "content": full_response,
+                            "sources": sources,
+                            "cached": False
+                        }
+                        await cache_service.cache_rag_response(cache_key, json.dumps(cache_data))
                     return
-
+    
             # Fallback to general knowledge
             yield {"type": "thinking", "message": "Generating general response..."}
+            full_response = ""
+            
             async for chunk in self.generate_general_knowledge_answer_stream(query):
-                yield chunk
-
+                if chunk["type"] == "chunk":
+                    content = chunk.get("content", "")
+                    full_response += content
+                    yield chunk
+                elif chunk["type"] == "complete":
+                    yield chunk
+                    break
+                
+            # Cache general knowledge responses too (optional)
+            if full_response.strip():
+                cache_data = {
+                    "content": full_response,
+                    "sources": [],
+                    "cached": False
+                }
+                await cache_service.cache_rag_response(cache_key, json.dumps(cache_data))
+    
         except Exception as e:
             yield {"type": "error", "message": str(e)}
+    
 
     async def generate_general_knowledge_answer_stream(self, query: str):
         """Generate streaming answer using general knowledge"""
