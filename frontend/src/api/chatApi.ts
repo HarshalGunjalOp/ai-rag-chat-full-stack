@@ -22,13 +22,13 @@ export async function uploadFiles(user: string, files: File[]) {
 export function streamMessage(
   user: string,
   prompt: string,
-  conversationId?: string,
+  conversation_id?: string,
   signal?: AbortSignal
 ) {
   return fetch(`${base}/messages/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: prompt, conversationId, user_id: user }),
+    body: JSON.stringify({ content: prompt, conversation_id, user_id: user }),
     signal,
   });
 }
@@ -37,8 +37,8 @@ export function clearDocuments(user: string) {
   return fetch(`${base}/documents/clear?user_id=${user}`, { method: 'DELETE' });
 }
 
-export function getConversationMessages(conversationId: string) {
-  return fetch(`${base}/conversations/${conversationId}/messages`).then(r => {
+export function getConversationMessages(conversation_id: string) {
+  return fetch(`${base}/conversations/${conversation_id}/messages`).then(r => {
     if (!r.ok) {
       throw new Error(`Failed to fetch messages: ${r.status}`);
     }

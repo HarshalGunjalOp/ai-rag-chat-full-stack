@@ -15,7 +15,7 @@ type Message = {
 };
 
 interface ChatState {
-  userId: string;
+  user_id: string;
   conversations: Conversation[];
   currentConv: Conversation | null;
   messages: Message[];
@@ -42,7 +42,7 @@ export const useChat = () => {
 
 function useChatController() {
   type Notification = { id: string; text: string; kind: 'success' | 'error' };
-  const [userId] = useState(
+  const [user_id] = useState(
     () =>
       localStorage.getItem('chat_user_id') ??
       (() => {
@@ -72,7 +72,7 @@ function useChatController() {
   /* initial load */
   useEffect(() => {
     refreshDocStatus();
-    api.listConversations(userId).then(setConversations);
+    api.listConversations(user_id).then(setConversations);
     // eslint-disable-next-line
   }, []);
 
@@ -85,7 +85,7 @@ function useChatController() {
 
   async function refreshDocStatus() {
     try {
-      const d = await api.documentsStatus(userId);
+      const d = await api.documentsStatus(user_id);
       setDocStatus({ count: d.documentCount, chunks: d.totalChunks });
       setConnectionOk(true);
     } catch {
@@ -136,34 +136,43 @@ function useChatController() {
     setCurrentConv(null);
   };
 
-  async function loadConversationMessages(conversationId: string) {
-    try {
-      setLoading(true);
-      setMessages([]); // Clear current messages
-
-      const messages = await api.getConversationMessages(conversationId);
-
-      // Transform backend messages to frontend format
-      const transformedMessages = messages.map((msg: any) => ({
-        id: msg.id.toString(),
-        type: msg.message_type,
-        text: typeof msg.content === 'string' ? msg.content : msg.content.text || '',
-        createdAt: msg.created_at,
-        sources: msg.content.sources || undefined,
-      }));
-
-      setMessages(transformedMessages);
-    } catch (error) {
-      console.error('Error loading conversation messages:', error);
-      addNotification('Failed to load conversation messages', 'error');
-      setMessages([]); // Clear messages on error
-    } finally {
-      setLoading(false);
-    }
+  async function loadConversationMessages(conversation_id: string | number) {
+  // Convert to string first
+  const convId = String(conversation_id)
+  
+  // Don't try to load messages for temporary conversations
+  if (convId.startsWith("temp-")) {
+    setMessages([]) // Clear messages for temp conversations
+    return
   }
+  
+  try {
+    setLoading(true)
+    setMessages([]) // Clear current messages
+    const messages = await api.getConversationMessages(convId)
+    
+    const transformedMessages = messages.map((msg: any) => ({
+      id: msg.id.toString(),
+      type: msg.messagetype,
+      text: typeof msg.content === "string" ? msg.content : msg.content.text,
+      createdAt: msg.createdat,
+      sources: msg.content.sources || undefined,
+    }))
+    
+    setMessages(transformedMessages)
+  } catch (error) {
+    console.error("Error loading conversation messages:", error)
+    addNotification("Failed to load conversation messages", "error")
+    setMessages([]) // Clear messages on error
+  } finally {
+    setLoading(false)
+  }
+}
+
+
   return {
     /* state */
-    userId,
+    user_id,
     conversations,
     currentConv,
     messages,

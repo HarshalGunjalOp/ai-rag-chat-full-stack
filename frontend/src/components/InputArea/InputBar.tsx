@@ -13,7 +13,7 @@ import * as api from '../../api/chatApi.ts';
 
 export default function InputBar() {
   const {
-    userId,
+    user_id,
     addUserMessage,
     pushAssistantPlaceholder,
     appendStreamChunk,
@@ -22,6 +22,8 @@ export default function InputBar() {
     setLoading,
     isLoading,
     setCurrentConv,
+    conversations,
+    setConversations
   } = useChat();
 
   const [text, setText] = useState('');
@@ -48,55 +50,106 @@ export default function InputBar() {
   }, []);
 
   
-const send = async () => {
-  if (!text.trim()) return;
-
-  addUserMessage(text.trim());
-  pushAssistantPlaceholder();
-  setText("");
-  setLoading(true);
-  controllerRef.current = new AbortController();
-
+const sendMessage = async (text: string) => {
+  if (!text.trim()) return
+  
+  addUserMessage(text.trim())
+  pushAssistantPlaceholder()
+  setText("")
+  setLoading(true)
+  const newTitle = createConversationTitle(text.trim())
+  
+  // ✅ Ensure conversation exists BEFORE sending message
+  let conversation_id = currentConv?.id
+  
+  if (!currentConv) {
+    const newTitle = text.trim().slice(0, 30) + (text.trim().length > 30 ? "..." : "")
+    const tempConv = {
+      id: "temp-" + Date.now(),
+      title: newTitle,
+      timestamp: new Date().toISOString(),
+    }
+    setCurrentConv(tempConv)
+    setConversations(prev => [tempConv, ...prev])
+    conversation_id = undefined // Let backend create new conversation
+  }
+  
+  controllerRef.current = new AbortController()
+  
   try {
     const resp = await api.streamMessage(
-      userId,
+      user_id,
       text.trim(),
-      currentConv?.id,
+      // ✅ Pass the actual conversation ID, not temp ID
+      typeof conversation_id === "string" && conversation_id.startsWith("temp-") 
+        ? undefined 
+        : conversation_id,
       controllerRef.current.signal
-    );
-
-    // Check if response is ok
+    )
+    
     if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
     }
-
+    
+    let responseMetadata: any = null
+    
     await consume(
       resp,
       (chunk: string) => appendStreamChunk(chunk),
       (meta: any) => {
-        finaliseAssistant(undefined, meta?.sources);
-        if (!currentConv && meta?.conversationId) {
-          setCurrentConv({
-            id: meta.conversationId,
-            title: meta.fullText?.slice(0, 30) || "New Chat",
-            timestamp: new Date().toISOString(),
-          });
-        }
+        responseMetadata = meta
+        finaliseAssistant(undefined, meta?.sources)
       }
-    );
-  } catch (err: any) {
-    console.error("Send message error:", err);
+    )
     
-    // Show user-friendly error
-    if (err.message?.includes("fetch")) {
-      console.error("Connection error - please try again");
-    } else {
-      console.error("Failed to send message - please try again");
+    // ✅ Update conversation with real ID from backend
+    if (responseMetadata?.conversation_id && (!currentConv || currentConv.id.toString().startsWith("temp-"))) {
+      const realConv = {
+        id: responseMetadata.conversation_id,
+        title: currentConv?.title || newTitle,
+        timestamp: new Date().toISOString(),
+      }
+      setCurrentConv(realConv)
+      
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id.toString().startsWith("temp-") ? realConv : conv
+        )
+      )
+    }
+    
+  } catch (err: any) {
+    console.error("Send message error:", err)
+    // Clean up temp conversation on error
+    if (currentConv?.id?.toString().startsWith("temp-")) {
+      setCurrentConv(null)
+      setConversations(prev => prev.filter(conv => !conv.id.toString().startsWith("temp-")))
     }
   } finally {
-    setLoading(false);
+    setLoading(false)
   }
-};
+}
+
+
+
+
+const createConversationTitle = (text: string): string => {
+  // Remove extra whitespace and limit to 30 characters
+  const cleaned = text.trim().replace(/\s+/g, ' ')
+  if (cleaned.length <= 30) return cleaned
+  
+  // Try to cut at word boundary
+  const truncated = cleaned.slice(0, 30)
+  const lastSpace = truncated.lastIndexOf(' ')
+  
+  if (lastSpace > 15) { // If we can cut at a word boundary without making it too short
+    return truncated.slice(0, lastSpace) + "..."
+  }
+  
+  return truncated + "..."
+}
+
+
 
   const handleUploadDocuments = () => {
     setShowDropdown(false);
@@ -108,7 +161,7 @@ const send = async () => {
     try {
       setNotification({ type: 'success', message: 'Clearing documents...' });
 
-      const response = await api.clearDocuments(userId);
+      const response = await api.clearDocuments(user_id);
 
       // The response should be a JSON object with a message property
       setNotification({
@@ -178,7 +231,7 @@ const send = async () => {
           onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              send();
+              sendMessage(text);
             }
           }}
           placeholder="Type your message..."
@@ -188,7 +241,7 @@ const send = async () => {
 
         <button
           disabled={!text.trim() || isLoading}
-          onClick={send}
+          onClick={() => sendMessage(text)}
           className="bg-purple-800 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex gap-2"
         >
           <PaperAirplaneIcon className="w-4 h-4 my-1" />

@@ -211,54 +211,68 @@ async def get_conversation_messages(conversation_id: int, limit: int = 50):
 
 @router.post("/messages/stream")
 async def send_message_stream(request: MessageRequest):
-    """Send message and stream the AI response"""
     try:
-        # Validate request
-        if not request.content.strip():
-            raise HTTPException(
-                status_code=400, detail="Message content cannot be empty"
-            )
-
-        # Create or get conversation
+        # ✅ Get or create conversation FIRST
         conversation_id = await get_or_create_conversation(
-            request.user_id, request.conversation_id
+            request.user_id, 
+            request.conversation_id
         )
-
-        # Save user message
+        
+        # ✅ Save user message with conversation_id
         user_message = await save_message(
             conversation_id=conversation_id,
             user_id=request.user_id,
             content={"text": request.content},
-            message_type="user",
+            message_type="user"
         )
-
-        # Cache user message
-        await cache_service.cache_message(
-            str(conversation_id),
-            {
-                "id": user_message["id"],
-                "content": user_message["content"],
-                "message_type": user_message["message_type"],
-                "created_at": user_message["created_at"].isoformat(),
-            },
-        )
-
-        # Generate streaming response
+        
+        async def generate_stream():
+            try:
+                yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id})}\n\n"
+                
+                full_response = ""
+                sources = []
+                
+                # Generate AI response
+                async for chunk in rag_service.query(request.content, user_id=request.user_id):
+                    if chunk.get("type") == "chunk":
+                        content = chunk.get("content", "")
+                        full_response += content
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
+                    elif chunk.get("type") == "complete":
+                        sources = chunk.get("sources", [])
+                        break
+                
+                # ✅ Save assistant message to SAME conversation
+                assistant_message = await save_message(
+                    conversation_id=conversation_id,  # Same conversation!
+                    user_id=request.user_id,
+                    content={"text": full_response, "sources": sources},
+                    message_type="assistant"
+                )
+                
+                yield f"data: {json.dumps({
+                    'type': 'complete', 
+                    'sources': sources,
+                    'conversation_id': conversation_id
+                })}\n\n"
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        
         return StreamingResponse(
-            generate_ai_response(request.content, conversation_id, request.user_id),
+            generate_stream(),
             media_type="text/plain",
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "*",
-            },
+            }
         )
-
+        
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to process message: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+
 
 
 @router.post("/messages/rag/stream")
@@ -420,29 +434,27 @@ async def generate_ai_response(query: str, conversation_id: int, user_id: str):
         yield f"data: ERROR: {str(e)}\n\n"
 
 
-async def get_or_create_conversation(
-    user_id: str, conversation_id: Optional[int] = None
-) -> int:
+async def get_or_create_conversation(user_id: str, conversation_id: Optional[int] = None) -> int:
     """Get existing conversation or create new one"""
     if conversation_id:
         # Verify conversation exists and belongs to user
         async with await db_manager.get_connection() as conn:
             result = await conn.fetchrow(
                 "SELECT id FROM conversations WHERE id = $1 AND user_id = $2",
-                conversation_id,
-                user_id,
+                conversation_id, user_id
             )
             if result:
                 return conversation_id
-
+            # If conversation doesn't exist, create new one
+    
     # Create new conversation
     async with await db_manager.get_connection() as conn:
         result = await conn.fetchrow(
             "INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id",
-            user_id,
-            "New Conversation",
+            user_id, "New Conversation"
         )
         return result["id"]
+
 
 
 async def save_message(
@@ -461,40 +473,6 @@ async def save_message(
         )
         return dict(result)
 
-
-async def stream_rag_response(query: str):
-    """Stream RAG response using OpenAI streaming API"""
-    try:
-        # Get relevant documents first
-        rag_result = await rag_service.query(query, topk=5, relevance_threshold=0.3)
-
-        context = "\n".join([doc for doc in rag_result.get("sources", [])])
-
-        # Create streaming OpenAI request
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI()
-
-        messages = [
-            {
-                "role": "system",
-                "content": f"This is the context provided by the user. If you find the answer to the query in the context, then answer based on that, else use your own knowlege to answer the question: {context}",
-            },
-            {"role": "user", "content": query},
-        ]
-
-        stream = await client.chat.completions.create(
-            model="o3-mini",
-            messages=messages,
-            stream=True,
-        )
-
-        async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-
-    except Exception as e:
-        yield f"\n\nError: {str(e)}"
 
 
 
@@ -735,11 +713,7 @@ async def get_document_status(user_id: str):
 async def clear_all_documents(user_id: str):
     """Clear all documents from RAG context (admin function)"""
     try:
-        # Reset the advanced RAG service
         rag_service.user_documents[user_id] = []
-        rag_service.document_metadata = {}
-        rag_service.faiss_index = None
-        rag_service.bm25_index = None
 
         # Clear related caches
         # Note: In production, you might want to clear only user-specific documents

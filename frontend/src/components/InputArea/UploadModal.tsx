@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import * as api from '../../api/chatApi';
 
 export default function UploadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { userId, refreshDocStatus } = useChat();
+  const { user_id, refreshDocStatus } = useChat();
   const [files, setFiles] = useState<{ name: string; status: 'uploading' | 'ok' | 'error' }[]>([]);
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function UploadModal({ open, onClose }: { open: boolean; onClose:
     setFiles(list.map(f => ({ name: f.name, status: 'uploading' })));
 
     api
-      .uploadFiles(userId, list)
+      .uploadFiles(user_id, list)
       .then(res => {
         setFiles(
           res.map((r: any) => ({
