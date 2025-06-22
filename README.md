@@ -15,11 +15,7 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 ### ✨ **Key Highlights**
 
 - 🧠 **Advanced RAG Pipeline**: Sophisticated retrieval-augmented generation with vector similarity search
-- ⚡ **Real-time Streaming**: WebSocket-based streaming responses with sub-second latency
-- 🏗️ **Production Architecture**: Microservices design with containerized deployment
-- 🔐 **Enterprise Security**: JWT authentication, rate limiting, and data encryption
-- 📊 **Intelligent Analytics**: Real-time monitoring with performance metrics and usage insights
-- 🌐 **Scalable Infrastructure**: Auto-scaling capabilities with load balancing
+- ⚡ **Real-time Streaming**: Async real-time streaming responses with sub-second latency
 - 🎨 **Modern UI/UX**: Responsive design with dark mode and accessibility features
 
 ---
@@ -27,31 +23,25 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 ## 🏛️ **Architecture & Technology Stack**
 
 ### **Frontend**
-- **Framework**: Next.js 14 with App Router
+- **Framework**: ReactJs with react-router-dom
 - **Language**: TypeScript for type safety
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **State Management**: Zustand with persistence
-- **Real-time**: WebSocket integration for streaming
+- **Styling**: Tailwind CSS
 
 ### **Backend**
 - **API Framework**: FastAPI with async/await support
 - **Language**: Python 3.11+ with type hints
-- **Authentication**: JWT with refresh token rotation
 - **Caching**: Redis for session management and query caching
 
 ### **AI & Machine Learning**
-- **LLM Integration**: OpenAI GPT-4, Anthropic Claude, or local models
-- **Vector Database**: Pinecone/Weaviate for semantic search
-- **Embeddings**: OpenAI text-embedding-ada-002
+- **LLM Integration**: OpenAI GPT o3-mini model
+- **Embeddings**: OpenAI text-embedding
 - **Framework**: LangChain for RAG orchestration
 - **Document Processing**: PyPDF2, python-docx for multi-format support
 
 ### **Data & Infrastructure**
 - **Database**: PostgreSQL with pgvector extension
-- **Message Queue**: Redis/RabbitMQ for async processing
-- **Containerization**: Docker with multi-stage builds
-- **Orchestration**: Kubernetes for production deployment
-- **Monitoring**: Prometheus + Grafana for observability
+- **Message Queue**: Redis for async processing
+- **Containerization**: Docker with multi-stage build
 
 ---
 
