@@ -37,16 +37,25 @@ app = FastAPI(title="RAG Chat API", version="1.0.0", lifespan=lifespan)
 # Fixed CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:8000",
-        "http://localhost:5173",
-        "https://ai-rag-chat-full-stack-1.onrender.com",
-        "https://ai-rag-chat-full-stack.onrender.com"
-    ],  # Add your frontend URLs
+#    allow_origins=[
+#        "http://localhost:3000",
+#        "http://127.0.0.1:8000",
+#        "http://localhost:5173",
+#        "http://65.2.82.123:5173",
+#        "http://172.31.8.104:5173"
+#        "http://65.2.82.123:8000",
+#        "http://172.31.8.104:8000"
+#    ],  # Add your frontend URLs
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin"
+    ],
     expose_headers=["*"],
 )
 
