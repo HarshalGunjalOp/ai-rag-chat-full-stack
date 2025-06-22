@@ -2,8 +2,8 @@
 
 *A production-ready, full-stack Retrieval-Augmented Generation (RAG) chat application built with modern AI technologies*
 
-This is the deployment link: http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com/
-I have deployed this website using an AWS EC2 instance and nginx for reverse proxy.
+This is the deployment link: [Link to the website frontend](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com/)
+I have deployed this application using an AWS EC2 instance and nginx for reverse proxy.
 
 [![GitHub stars](https://img.shields.io/github/stars/HarshalGunjalOp/ai-rag-chat-full-stack?style=social)](https://github.com/username/ai-rag-chat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -20,6 +20,13 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 - 🧠 **Advanced RAG Pipeline**: Sophisticated retrieval-augmented generation with vector similarity search
 - ⚡ **Real-time Streaming**: Async real-time streaming responses with sub-second latency
 - 🎨 **Modern UI/UX**: Responsive design with dark mode and accessibility features
+- 🎹 **Keyboard Shortcuts**: Ctrl+I for new chat and Ctrl+b to collapse sidebar
+- 🚀 **Superfast Redis Caching**: Implemented aggresive redis caching with 1hr of TTL.
+
+
+### **Swagger Docs**
+
+If you want to test out the backend API endpoints, then you can use the swagger docs provided on this link: [Swagger Docs](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com:8000/docs)
 
 ---
 
