@@ -2,7 +2,7 @@
 
 *A production-ready, full-stack Retrieval-Augmented Generation (RAG) chat application built with modern AI technologies*
 
-This is the deployment link: [Link to the website frontend](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com/)
+This is the deployment link: [Link to the website frontend](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com/) <br>
 I have deployed this application using an AWS EC2 instance and nginx for reverse proxy.
 
 [![GitHub stars](https://img.shields.io/github/stars/HarshalGunjalOp/ai-rag-chat-full-stack?style=social)](https://github.com/username/ai-rag-chat)
@@ -19,9 +19,10 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 
 - 🧠 **Advanced RAG Pipeline**: Sophisticated retrieval-augmented generation with vector similarity search
 - ⚡ **Real-time Streaming**: Async real-time streaming responses with sub-second latency
-- 🎨 **Modern UI/UX**: Responsive design with dark mode and accessibility features
+- 🎨 **Modern UI/UX**: Modern and cool looking UI with dark mode and accessibility features
 - 🎹 **Keyboard Shortcuts**: Ctrl+I for new chat and Ctrl+b to collapse sidebar
 - 🚀 **Superfast Redis Caching**: Implemented aggresive redis caching with 1hr of TTL.
+- 📜 **Multiple Document Types Supported**: I have implemented support for text files, pdf files, markdown files as well all Multiple image types as well.
 
 
 ### **Swagger Docs**
@@ -51,7 +52,6 @@ If you want to test out the backend API endpoints, then you can use the swagger 
 ### **Data & Infrastructure**
 - **Database**: PostgreSQL with pgvector extension
 - **Message Queue**: Redis for async processing
-- **Containerization**: Docker with multi-stage build
 
 ---
 
@@ -60,13 +60,12 @@ If you want to test out the backend API endpoints, then you can use the swagger 
 ### **Prerequisites**
 - Node.js 18+ and npm/yarn
 - Python 3.11+
-- Docker and Docker Compose
 - OpenAI API key (or alternative LLM provider)
 
 ### **1. Clone the Repository**
 ```bash
 git clone https://github.com/HarshalGunjalOp/ai-rag-chat-full-stack.git
-cd ai-rag-chat
+cd ai-rag-chat-full-stack
 ```
 
 ### **2. Environment Setup**
@@ -75,16 +74,8 @@ cd ai-rag-chat
 cp .env.example .env
 ```
 
-### **3. Start with Docker (Recommended)**
-```bash
-# Build and start all services
-docker-compose up --build
 
-# Access the application
-open http://localhost:3000
-```
-
-### **4. Manual Setup (Development)**
+### **4. Development Setup**
 ```bash
 # Backend setup
 cd backend
