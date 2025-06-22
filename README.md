@@ -10,7 +10,7 @@
 
 ## 🎯 **Project Overview**
 
-This intelligent chat application leverages cutting-edge **Retrieval-Augmented Generation (RAG)** technology to provide accurate, context-aware responses by combining the power of Large Language Models with real-time document retrieval. Built with a modern full-stack architecture, it demonstrates enterprise-grade scalability, security, and performance optimization.
+This intelligent chat application leverages cutting-edge **Retrieval-Augmented Generation (RAG)** technology to provide accurate, context-aware responses by combining the power of Large Language Models with real-time document retrieval. Used redis for caching and it gives near instant cached responses. Deployed it on a AWS EC2 instance.
 
 ### ✨ **Key Highlights**
 
