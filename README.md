@@ -2,7 +2,7 @@
 
 *A production-ready, full-stack Retrieval-Augmented Generation (RAG) chat application built with modern AI technologies*
 
-[![GitHub stars](https://img.shields.io/github/stars/username/ai-rag-chat?style=social)](https://github.com/username/ai-rag-chat)
+[![GitHub stars](https://img.shields.io/github/stars/HarshalGunjalOp/ai-rag-chat-full-stack?style=social)](https://github.com/username/ai-rag-chat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -65,17 +65,14 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 
 ### **1. Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/ai-rag-chat.git
+git clone https://github.com/HarshalGunjalOp/ai-rag-chat-full-stack.git
 cd ai-rag-chat
 ```
 
 ### **2. Environment Setup**
 ```bash
-# Copy environment template
+# Copy environment template for both frontend and backend and add your api keys
 cp .env.example .env
-
-# Configure your API keys
-nano .env
 ```
 
 ### **3. Start with Docker (Recommended)**
@@ -136,7 +133,7 @@ npm run dev
 
 ### **Project Structure**
 ```
-ai-rag-chat/
+ai-rag-chat-full-stack/
 ├── frontend/                 # Next.js application
 │   ├── src/
 │   │   ├── components/      # Reusable UI components
@@ -152,129 +149,17 @@ ai-rag-chat/
 │   │   ├── services/       # Business logic
 │   │   └── utils/          # Utility functions
 │   └── requirements.txt
-├── infrastructure/          # Deployment configurations
-│   ├── docker/             # Docker configurations
-│   ├── k8s/               # Kubernetes manifests
-│   └── terraform/         # Infrastructure as Code
-├── docs/                   # Documentation
-└── tests/                  # Test suites
+└── README.md
 ```
 
-### **Running Tests**
+### **Code Formatting**
 ```bash
-# Backend tests
-cd backend
-pytest --cov=app tests/
-
-# Frontend tests
-cd frontend
-npm run test
-
-# End-to-end tests
-npm run test:e2e
-```
-
-### **Code Quality**
-```bash
-# Python linting and formatting
+# Python formatting
 black . && isort . && flake8
 
-# TypeScript linting
-npm run lint && npm run type-check
+# TypeScript formatting
+npx prettier --write .
 ```
-
----
-
-## 🚢 **Deployment**
-
-### **Production Deployment**
-
-#### **Docker Compose (Simple)**
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-#### **Kubernetes (Scalable)**
-```bash
-# Apply Kubernetes manifests
-kubectl apply -f infrastructure/k8s/
-
-# Check deployment status
-kubectl get pods -n ai-rag-chat
-```
-
-### **Environment Variables**
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key for LLM access | ✅ |
-| `PINECONE_API_KEY` | Pinecone vector database key | ✅ |
-| `DATABASE_URL` | PostgreSQL connection string | ✅ |
-| `REDIS_URL` | Redis connection string | ✅ |
-| `JWT_SECRET` | Secret key for JWT tokens | ✅ |
-| `ENVIRONMENT` | Deployment environment | ✅ |
-
----
-
-## 🎯 **Performance & Scalability**
-
-### **Optimization Features**
-- **Response Caching**: Intelligent caching of frequent queries (85% cache hit rate)
-- **Connection Pooling**: Optimized database connections with automatic scaling
-- **Lazy Loading**: Dynamic component loading for faster initial page loads
-- **CDN Integration**: Static asset delivery through global CDN networks
-
-### **Scalability Metrics**
-- **Concurrent Users**: Supports 10,000+ simultaneous users
-- **Response Time**: Average response time < 2 seconds
-- **Throughput**: Processes 1,000+ queries per minute
-- **Uptime**: 99.9% availability with automated failover
-
----
-
-## 🔐 **Security & Compliance**
-
-### **Security Features**
-- **Authentication**: Multi-factor authentication with session management
-- **Authorization**: Role-based access control (RBAC)
-- **Data Encryption**: End-to-end encryption for sensitive data
-- **Rate Limiting**: Configurable rate limits to prevent abuse
-- **CORS Protection**: Secure cross-origin resource sharing
-- **Input Validation**: Comprehensive input sanitization and validation
-
-### **Compliance**
-- **GDPR**: Data privacy and user consent management
-- **SOC 2**: Security controls and monitoring
-- **OWASP**: Following OWASP security best practices
-
----
-
-## 📈 **Monitoring & Observability**
-
-### **Metrics & Logging**
-- **Application Metrics**: Response times, error rates, throughput
-- **Infrastructure Metrics**: CPU, memory, disk usage
-- **Custom Metrics**: RAG-specific metrics (retrieval accuracy, relevance scores)
-- **Distributed Tracing**: Request flow tracking across microservices
-
-### **Alerting**
-- **Performance Alerts**: Automated alerts for performance degradation
-- **Error Monitoring**: Real-time error tracking and notification
-- **Capacity Planning**: Predictive scaling based on usage patterns
-
----
-
-## 🤝 **Contributing**
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### **Development Workflow**
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
 
 ## 📝 **License**
 
@@ -282,24 +167,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🔗 **Links & Resources**
-
-- **📖 Documentation**: [Full Documentation](https://docs.ai-rag-chat.com)
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/yourusername/ai-rag-chat/issues)
-- **💬 Community**: [Discord Server](https://discord.gg/ai-rag-chat)
-- **📧 Contact**: contact@ai-rag-chat.com
-
----
-
-## 🙏 **Acknowledgments**
-
-- [LangChain](https://langchain.com/) for RAG framework
-- [OpenAI](https://openai.com/) for LLM capabilities
-- [Pinecone](https://pinecone.io/) for vector database
-- [Vercel](https://vercel.com/) for deployment platform
-
----
-
 **⭐ If you find this project helpful, please give it a star on GitHub!**
 
-*Built with ❤️ by [Your Name] - [Your LinkedIn](https://linkedin.com/in/yourprofile)*
+*Built with ❤️ by Harshal - [My Linkedin](https://linkedin.com/in/harshalgunjal)*
