@@ -2,7 +2,7 @@
 
 *A production-ready, full-stack Retrieval-Augmented Generation (RAG) chat application built with modern AI technologies*
 
-This is the deployment link: [Link to the website frontend](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com/) <br>
+This is the deployment link: [Link to the website](https://www.harshalgunjal.in/) <br>
 I have deployed this application using an AWS EC2 instance and nginx for reverse proxy.
 
 [![GitHub stars](https://img.shields.io/github/stars/HarshalGunjalOp/ai-rag-chat-full-stack?style=social)](https://github.com/username/ai-rag-chat)
@@ -27,7 +27,7 @@ This intelligent chat application leverages cutting-edge **Retrieval-Augmented G
 
 ### **Swagger Docs**
 
-If you want to test out the backend API endpoints, then you can use the swagger docs provided on this link: [Swagger Docs](http://ec2-65-2-82-123.ap-south-1.compute.amazonaws.com:8000/docs)
+If you want to test out the backend API endpoints, then you can use the swagger docs provided on this link: [Swagger Docs](https://www.harshalgunjal.in/docs)
 
 ---
 
