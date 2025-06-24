@@ -1,3 +1,16 @@
+<div style="background-color: #fff3cd; border-left: 6px solid #ffeeba; padding: 16px; margin-bottom: 16px;">
+
+<strong>⚠️ Having Trouble Loading the Application?</strong><br><br>
+If the application looks broken or doesn’t update properly:
+<ul>
+  <li>🔄 <strong>Clear your browser cache</strong></li>
+  <li>🕵️‍♂️ <strong>Try Incognito/Private mode</strong></li>
+  <li>🔁 <strong>Do a hard refresh</strong> (e.g., <code>Ctrl + Shift + R</code> or <code>Cmd + Shift + R</code>)</li>
+</ul>
+This often happens when the browser caches an old version of the frontend after a new deployment.
+</div>
+
+
 # 🚀 AI RAG Chat Application
 
 *A production-ready, full-stack Retrieval-Augmented Generation (RAG) chat application built with modern AI technologies*
